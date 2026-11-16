@@ -17,7 +17,7 @@ CD.usuarios = {
   "@Tomás_runner":   { tono: 120, f: 2, on: true  },
   "@Mati_lol":       { tono: 260, f: 2, on: false },
   "@Feña.mtz":       { tono: 340, f: 1, on: true  },
-  "@Mod":            { tono: 90,  f: 3, on: true  }
+  "@Mod":            { tono: 90,  f: 3, on: true, mod: true }
 };
 
 /* Foros: el primer mensaje es el texto largo de quien inició el foro */

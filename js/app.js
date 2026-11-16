@@ -64,17 +64,22 @@
     }).join("");
   }
 
-  /* ---------- participantes ---------- */
+  /* ---------- usuarios activos (moderadores primero) ---------- */
   function pintarParticipantes() {
-    var vistos = {}, lista = [];
+    var ultimo = {};
     foros().forEach(function (f) {
-      mensajes(f).forEach(function (m) {
-        if (!vistos[m.de] && m.de !== YO) { vistos[m.de] = f.id; lista.push(m.de); }
-      });
+      mensajes(f).forEach(function (m) { if (!ultimo[m.de]) ultimo[m.de] = f.id; });
+      mensajes(f).forEach(function (m) { if (m.eliminado && m.por) ultimo[m.por] = ultimo[m.por] || f.id; });
     });
-    $("#participantes").innerHTML = lista.slice(0, 16).map(function (h) {
-      return '<button class="part" data-foro="' + vistos[h] + '" title="' + esc(h) + '">' + avatar(h) +
-        '<span class="punto' + (datosUsuario(h).on ? '' : ' off') + '"></span></button>';
+    var lista = Object.keys(CD.usuarios).filter(function (h) { return CD.usuarios[h].on && ultimo[h]; });
+    lista.sort(function (a, b) { return (CD.usuarios[b].mod ? 1 : 0) - (CD.usuarios[a].mod ? 1 : 0); });
+    $("#activosLista").innerHTML = lista.map(function (h) {
+      var mod = CD.usuarios[h].mod;
+      return '<li><button class="activo' + (mod ? ' es-mod' : '') + '" data-foro="' + ultimo[h] + '">' +
+        '<span class="act-av">' + avatar(h) + '</span>' +
+        '<span class="act-nom">' + esc(h) + '</span>' +
+        (mod ? '<span class="insignia-mod">MOD</span>' : '') +
+        '<span class="punto"></span></button></li>';
     }).join("");
   }
 
