@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="es" data-tema="claro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Samexid · CUIDANDROGA</title>
+<link rel="stylesheet" href="css/aero.css">
+<link rel="stylesheet" href="css/conoce.css">
+<script>try{var t=localStorage.getItem('cd_tema');if(t)document.documentElement.dataset.tema=t;}catch(e){}</script>
+</head>
+<body>
+<div class="fondo" aria-hidden="true">
+  <div class="cielo"></div>
+  <svg class="aurora" viewBox="0 0 1600 1000" preserveAspectRatio="none">
+    <defs>
+      <linearGradient id="cintaA" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="var(--cinta1)" stop-opacity="0"/><stop offset=".35" stop-color="var(--cinta1)" stop-opacity=".9"/><stop offset=".7" stop-color="var(--cinta2)" stop-opacity=".8"/><stop offset="1" stop-color="var(--cinta2)" stop-opacity="0"/></linearGradient>
+      <linearGradient id="cintaB" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="var(--cinta3)" stop-opacity="0"/><stop offset=".5" stop-color="var(--cinta3)" stop-opacity=".85"/><stop offset="1" stop-color="var(--cinta1)" stop-opacity="0"/></linearGradient>
+      <filter id="suave" x="-20%" y="-50%" width="140%" height="200%"><feGaussianBlur stdDeviation="14"/></filter>
+      <filter id="fino" x="-20%" y="-50%" width="140%" height="200%"><feGaussianBlur stdDeviation="2.5"/></filter>
+    </defs>
+    <g class="cintas">
+      <path class="c1" d="M-200 720 C 200 520, 520 820, 900 600 S 1450 330, 1800 470" stroke="url(#cintaA)" stroke-width="150" fill="none" filter="url(#suave)"/>
+      <path class="c2" d="M-200 640 C 260 470, 600 760, 960 540 S 1480 300, 1800 420" stroke="url(#cintaB)" stroke-width="34" fill="none" filter="url(#suave)"/>
+      <path class="c3" d="M-200 690 C 240 500, 560 790, 930 570 S 1460 320, 1800 450" stroke="url(#cintaA)" stroke-width="3" fill="none" filter="url(#fino)"/>
+      <path class="c4" d="M-200 760 C 300 600, 600 860, 980 650 S 1500 420, 1800 560" stroke="url(#cintaB)" stroke-width="2" fill="none" filter="url(#fino)"/>
+      <path class="c5" d="M-200 300 C 300 200, 700 420, 1100 260 S 1600 150, 1800 220" stroke="url(#cintaB)" stroke-width="90" fill="none" filter="url(#suave)" opacity=".55"/>
+    </g>
+  </svg>
+  <div class="destello"></div>
+  <div class="torres"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+</div>
+
+<header id="barra">
+  <a class="marca" href="index.html"><h1>CUIDANDROGA</h1></a>
+  <div class="barra-hueco"></div>
+  <div class="acciones">
+    <button id="btnTema" class="btn-pildora" title="Modo oscuro" aria-label="Modo oscuro"><span class="pildora"><i></i><i></i></span></button>
+  </div>
+</header>
+
+<main class="info">
+  <article class="ventana info-ventana">
+    <div class="cap">
+      <span class="cap-titulo">Samexid</span>
+      <span class="cap-btns"><a class="cb cerrar" href="index.html" aria-label="Cerrar"></a></span>
+    </div>
+
+    <div class="info-cuerpo">
+      <header class="info-cab">
+        <span class="icono-ayuda">?</span>
+        <div>
+          <h2>Samexid</h2>
+          <p class="info-sub">Lisdexanfetamina · cápsulas de 20 y 70 mg</p>
+        </div>
+      </header>
+
+      <section>
+        <h3>¿Qué es?</h3>
+        <p>Samexid es la marca de un medicamento cuyo principio activo es la <b>lisdexanfetamina</b>, un estimulante del sistema nervioso central. Después de tomarla, el cuerpo la transforma en dexanfetamina, que es la que actúa en el cerebro.</p>
+      </section>
+
+      <section>
+        <h3>¿Para qué se usa?</h3>
+        <ul>
+          <li>Trastorno por déficit de atención con hiperactividad (TDAH) en adultos y en niños desde los 6 años, como parte de un tratamiento más amplio.</li>
+          <li>En adultos, también para el trastorno por atracón.</li>
+          <li>No se usa para bajar de peso.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3>¿Cómo se toma?</h3>
+        <ul>
+          <li>Una vez al día, en la mañana, con o sin comida. De tarde o de noche puede quitar el sueño.</li>
+          <li>La cápsula se traga entera, o se abre y se mezcla con yogur, agua o jugo de naranja; la mezcla se toma de inmediato.</li>
+          <li>La dosis la indica y la ajusta el médico. No se toma más, más seguido ni por más tiempo de lo indicado.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3>Efectos comunes</h3>
+        <p>Boca seca, dolor de cabeza, mareos, náuseas, menos apetito y baja de peso, dificultad para dormir.</p>
+      </section>
+
+      <section class="alerta">
+        <h3>Consulta de urgencia si aparece</h3>
+        <p>Dolor en el pecho, falta de aire, desmayo, convulsiones, alucinaciones, debilidad de un brazo o una pierna, dificultad para hablar o hinchazón de la cara o la garganta.</p>
+      </section>
+
+      <section>
+        <h3>Cuidados</h3>
+        <ul>
+          <li>Puede generar dependencia: por eso se usa con control médico.</li>
+          <li>No dejarlo de golpe sin hablar con el médico: puede venir cansancio fuerte y ánimo bajo.</li>
+          <li>No se combina con medicamentos IMAO ni dentro de las dos semanas después de dejarlos.</li>
+          <li>Antes de empezar se revisa el corazón, y durante el tratamiento se controlan presión y pulso.</li>
+          <li>Contarle al médico si hay consumo frecuente de alcohol u otras drogas.</li>
+          <li>No manejar hasta saber cómo te afecta.</li>
+          <li>Guardarlo en su envase, a no más de 25 °C y fuera del alcance de niños. Lo que sobra no se bota al inodoro.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3>En Chile</h3>
+        <p>Se vende con <b>receta médica retenida</b> y solo a mayores de 18 años, en cajas de 30 cápsulas.</p>
+      </section>
+
+      <section class="fuentes">
+        <h3>Fuentes</h3>
+        <ul>
+          <li><a href="https://medlineplus.gov/spanish/druginfo/meds/a607047-es.html" target="_blank" rel="noopener">MedlinePlus (Biblioteca Nacional de Medicina de EE. UU.) · Lisdexanfetamina</a></li>
+          <li><a href="https://salcobrand.cl/products/samexid-lisdexanfetamina-20mg-30-capsulas" target="_blank" rel="noopener">Salcobrand · Samexid 20 mg, ficha del producto</a></li>
+          <li><a href="https://salcobrand.cl/products/samexid-lisdexanfetamina-70mg-30-capsulas" target="_blank" rel="noopener">Salcobrand · Samexid 70 mg, ficha del producto</a></li>
+        </ul>
+      </section>
+
+      <div class="info-pie"><a class="btn-aero" href="index.html">Volver al foro</a></div>
+    </div>
+  </article>
+</main>
+
+<script>
+(function(){
+  var b=document.getElementById('btnTema');
+  function t(){var o=document.documentElement.dataset.tema==='oscuro';b.title=o?'Modo claro':'Modo oscuro';b.setAttribute('aria-label',b.title);}
+  b.onclick=function(){var r=document.documentElement;r.dataset.tema=r.dataset.tema==='oscuro'?'claro':'oscuro';try{localStorage.setItem('cd_tema',r.dataset.tema);}catch(e){}t();};
+  t();
+})();
+</script>
+</body>
+</html>

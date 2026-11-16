@@ -1,0 +1,25 @@
+/* CUIDANDROGA · página de información */
+.marca{text-decoration:none}
+.info{padding:26px 16px 40px;display:flex;justify-content:center}
+.info-ventana{width:min(820px,100%)}
+.info-ventana .cb{display:block}
+.info-cuerpo{padding:22px 28px 26px;background:var(--campo);margin:6px;border:1px solid var(--vidrio-linea);border-radius:3px}
+.info-cab{display:flex;align-items:center;gap:14px;padding-bottom:14px;border-bottom:1px solid var(--vidrio-linea)}
+.info-cab .icono-ayuda{width:48px;height:48px;font-size:28px}
+.info-cab h2{margin:0;font-size:30px;font-weight:300;color:var(--tinta)}
+.info-sub{margin:2px 0 0;color:var(--tinta2)}
+.info section{margin-top:18px}
+.info h3{margin:0 0 6px;font-size:17px;font-weight:600;color:var(--verde3)}
+:root[data-tema="oscuro"] .info h3{color:#5fffa0;text-shadow:0 0 8px rgba(60,255,140,.4)}
+.info p,.info li{font-size:15px;line-height:1.6}
+.info p{margin:0}
+.info ul{margin:0;padding-left:20px}
+.info li{margin:3px 0}
+.info .alerta{padding:12px 14px;border:1px solid #e0a94a;border-radius:6px;background:linear-gradient(180deg,#fff7e6,#ffe8b8);color:#4a2c00}
+:root[data-tema="oscuro"] .info .alerta{background:linear-gradient(180deg,rgba(80,58,10,.85),rgba(30,20,4,.92));color:#ffe9b8}
+.info .alerta h3{color:#a35c00}
+:root[data-tema="oscuro"] .info .alerta h3{color:#ffc04d;text-shadow:none}
+.fuentes a{color:#1a6fc4}
+:root[data-tema="oscuro"] .fuentes a{color:#6fd0ff}
+.info-pie{margin-top:24px;display:flex;justify-content:center}
+@media (max-width:640px){.info-cuerpo{padding:16px}.info-cab h2{font-size:24px}}
