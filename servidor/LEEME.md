@@ -9,14 +9,14 @@ Cualquier aparato conectado al hotspot de tu celular abre **http://cuidandroga.c
 ## Una sola vez
 ```
 pkg install python git
-git clone https://github.com/Nekrooslkkk/Cuidandroga
+git clone https://github.com/Nekrooslkkk/Cuidandroga-FORO
 ```
 
 ## Cada vez que lo quieras mostrar
 1. Prende el hotspot del celular.
 2. En Termux:
 ```
-cd Cuidandroga
+cd Cuidandroga-FORO
 bash servidor/hotspot.sh
 ```
 3. Conecta el notebook o el otro celular a tu hotspot y abre `http://cuidandroga.cl`.
