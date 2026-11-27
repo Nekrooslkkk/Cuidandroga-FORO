@@ -668,3 +668,6 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:#3c7fb1;box-sh
   .reg-paso h2{font-size:21px}
   .pn-log small{margin-left:0}
 }
+.cargando{grid-column:1/-1;display:flex;flex-direction:column;align-items:center;gap:12px;padding:60px 20px;text-align:center;font-size:15px}
+.cargando .barra-prog{width:min(320px,80%)}
+.cargando .barra-prog i{width:100%;animation:none}

@@ -4,10 +4,9 @@
   const CD = window.CD, E = CD.E, $ = CD.$, esc = CD.esc;
   CD.botonTema($("#btnTema"));
 
-  if (CD.yo()) {
-    $("#regCuerpo").innerHTML = '<div class="reg-listo"><p>Ya tienes la sesión iniciada como <b>' + esc(CD.yo().nombre) + '</b>.</p><a class="btn-aero" href="index.html">Volver al foro</a></div>';
-    return;
-  }
+  CD.sb.auth.getSession().then(r => {
+    if (r.data && r.data.session) $("#regCuerpo").innerHTML = '<div class="reg-listo"><p>Ya tienes la sesión iniciada.</p><a class="btn-aero" href="index.html">Volver al foro</a></div>';
+  });
 
   /* fecha local en formato aaaa-mm-dd (sin errores de zona horaria) */
   const iso = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
@@ -55,7 +54,8 @@
     { id: "genero", et: "Género", titulo: "¿Cuál es tu género?", html: () => '<p class="reg-sub">Cómo te identificas.</p>' + botones("genero", CD.GENEROS.map(s => [s, s]), d.genero),
       leer: () => d.genero ? null : "Elige una opción.", res: () => d.genero },
     { id: "correo", et: "Correo", titulo: "Coloca tu correo", html: () => '<p class="reg-sub">Lo usamos para enviarte un código si pierdes tu contraseña.</p><label>Correo<input type="email" data-input="correo" value="' + esc(d.correo) + '" placeholder="tucorreo@ejemplo.cl" autocomplete="email"></label>',
-      leer: () => !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(d.correo) ? "Escribe un correo válido." : CD.porCorreo(d.correo) ? "Ya hay una cuenta con ese correo." : null, res: () => d.correo },
+      leer: () => !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(d.correo) ? "Escribe un correo válido." : null,
+      remoto: async () => (await CD.rpc("correo_libre", { p_correo: d.correo })) ? null : "Ya hay una cuenta con ese correo.", res: () => d.correo },
     { id: "estudia", et: "Estudios", titulo: "¿Estudias?",
       html: () => siNo("estudia", d.estudia) + (d.estudia ? '<label>¿En qué universidad estás?<select data-input="uni"><option value="">Elige…</option>' +
         Object.entries(CD.UNIS).map(([k, u]) => '<option value="' + k + '"' + (d.uni === k ? " selected" : "") + '>' + esc(u.n) + '</option>').join("") + '</select></label>' +
@@ -74,7 +74,8 @@
       leer: () => null, res: () => [d.pub.estudios ? "Estudios visibles" : "Estudios privados", d.pub.edad ? "edad visible" : "edad privada"].join(", ") },
     { id: "nombre", et: "Usuario", titulo: "Elige tu nombre de usuario",
       html: () => '<p class="reg-sub">Entre 3 y 20 letras, números, puntos o guiones bajos.</p><label>Nombre de usuario<span class="arroba"><b>@</b><input data-input="nombre" maxlength="20" value="' + esc(d.nombre) + '" autocomplete="username"></span></label>',
-      leer: () => !CD.nombreValido(d.nombre) ? "Usa entre 3 y 20 letras, números, puntos o guiones bajos." : CD.porNombre(d.nombre) ? "Ese nombre ya está ocupado." : null,
+      leer: () => !CD.nombreValido(d.nombre) ? "Usa entre 3 y 20 letras, números, puntos o guiones bajos." : null,
+      remoto: async () => (await CD.rpc("nombre_libre", { p_nombre: d.nombre })) ? null : "Ese nombre ya está ocupado.",
       res: () => d.nombre ? "@" + d.nombre : "" },
     { id: "foto", et: "Foto", titulo: "¿Quieres elegir una foto de usuario?",
       html: () => '<p class="reg-sub">Sube una foto o arma tu avatar.</p><div id="regEditor"></div>', leer: () => null, res: () => d.av.img ? "Foto subida" : "Avatar" },
@@ -109,9 +110,15 @@
   function error(t) { const e = $("#regPaso .error"); e.textContent = t; e.hidden = false; }
   function ir(id, edit) { actual = id; vistos.add(id); editando = !!edit; pintar(); const f = $("#regPaso input:not([type=checkbox]):not([type=file]),#regPaso select"); if (f) f.focus(); }
 
-  $("#regSig").onclick = () => {
+  $("#regSig").onclick = async () => {
     const vis = visibles(), i = vis.findIndex(p => p.id === actual), p = vis[i];
     const err = p.leer(); if (err) return error(err);
+    if (p.remoto) {
+      $("#regSig").disabled = true;
+      let r; try { r = await p.remoto(); } catch (e) { r = "No pude conectar con el servidor. Revisa tu internet."; }
+      $("#regSig").disabled = false;
+      if (r) return error(r);
+    }
     const falta = vis.find(q => q.id !== "resumen" && q.leer());
     if (p.id === "resumen") { if (falta) { ir(falta.id, true); return error(falta.leer()); } return crear(); }
     if (editando) return ir(falta ? falta.id : "resumen", true);
@@ -163,21 +170,18 @@
   $("#regCuerpo").addEventListener("keydown", e => { if (e.key === "Enter" && e.target.tagName === "INPUT") { e.preventDefault(); $("#regSig").click(); } });
 
   async function crear() {
-    const id = "u" + Date.now().toString(36), sal = CD.nuevaSal(), ahora = hoy();
-    const perfil = { edadModo: d.edadModo, sexo: d.sexo, genero: d.genero, correo: d.correo.toLowerCase(), estudia: d.estudia,
-      trabaja: d.estudia ? false : d.trabaja, pub: Object.assign({}, d.pub) };
-    if (d.edadModo === "fecha") perfil.nacimiento = d.nacimiento;
-    else { perfil.anio = +d.anio; perfil.edad = edadCalc(); perfil.edadAnioRegistro = ANIO; }
-    if (d.estudia) { perfil.uni = d.uni; perfil.carrera = d.carrera; }
-    if (!d.estudia && d.trabaja) perfil.ocupacion = d.ocupacion;
-    E.usuarios[id] = { id, nombre: "@" + d.nombre, rol: "usuario", on: true, av: d.av, sal, hash: CD.cifrar(sal, d.pass), perfil,
-      registro: iso(ahora), config: { avisarTodos: false, avisarParticipo: true, avisarLikes: true }, encuestaFinal: d.encuestaFinal };
-    E.sesion = id;
-    CD.notificar(id, { tipo: "bienvenida" });
-    Object.values(E.usuarios).filter(CD.esAdmin).forEach(a => CD.notificar(a.id, { tipo: "nuevo", de: id }));
-    CD.guardar();
-    await CD.progreso("Creando tu cuenta…", "Guardando tus datos en CUIDANDROGA", 1600);
-    location.href = d.encuestaFinal ? "encuesta.html" : "index.html";
+    const datos = { nombre: d.nombre, correo: d.correo, clave: d.pass, edadModo: d.edadModo, nacimiento: d.nacimiento || null, anio: d.anio ? +d.anio : null,
+      cumplio: d.cumplio, sexo: d.sexo, genero: d.genero, estudia: d.estudia, uni: d.uni, carrera: d.carrera, trabaja: d.trabaja, ocupacion: d.ocupacion,
+      pubEstudios: d.pub.estudios, pubEdad: d.pub.edad, av: d.av, encuestaFinal: d.encuestaFinal };
+    $("#regSig").disabled = true;
+    const anim = CD.progreso("Creando tu cuenta…", "Guardando tus datos en CUIDANDROGA", 1600);
+    try {
+      const correo = await CD.rpc("registrar", { d: datos });
+      const r = await CD.sb.auth.signInWithPassword({ email: correo, password: d.pass });
+      if (r.error) throw r.error;
+      await anim;
+      location.href = d.encuestaFinal ? "encuesta.html" : "index.html";
+    } catch (e) { await anim; $("#regSig").disabled = false; error(CD.errTexto(e)); }
   }
   pintar();
 })();

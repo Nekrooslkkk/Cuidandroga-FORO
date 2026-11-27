@@ -7,43 +7,6 @@
   const CLAVE = "cd_estado2", CLAVE_PREFS = "cd_prefs", VERSION = "s2";
   CD.AHORA = Date.now();
 
-  /* ---------------- SHA-256 (sirve también sin https) ---------------- */
-  const K = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,
-    0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
-    0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,
-    0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
-    0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,
-    0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
-  function sha256(texto) {
-    const b = new TextEncoder().encode(texto), l = b.length, n = ((l + 9 + 63) >> 6);
-    const w = new Uint32Array(n * 16);
-    for (let i = 0; i < l; i++) w[i >> 2] |= b[i] << (24 - (i % 4) * 8);
-    w[l >> 2] |= 0x80 << (24 - (l % 4) * 8);
-    w[n * 16 - 1] = l * 8;
-    const H = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
-    const W = new Uint32Array(64);
-    const r = (x, k) => (x >>> k) | (x << (32 - k));
-    for (let q = 0; q < n; q++) {
-      for (let t = 0; t < 16; t++) W[t] = w[q * 16 + t];
-      for (let t = 16; t < 64; t++) {
-        const s0 = r(W[t - 15], 7) ^ r(W[t - 15], 18) ^ (W[t - 15] >>> 3);
-        const s1 = r(W[t - 2], 17) ^ r(W[t - 2], 19) ^ (W[t - 2] >>> 10);
-        W[t] = (W[t - 16] + s0 + W[t - 7] + s1) | 0;
-      }
-      let [a, bb, c, d, e, f, g, h] = H;
-      for (let t = 0; t < 64; t++) {
-        const t1 = (h + (r(e, 6) ^ r(e, 11) ^ r(e, 25)) + ((e & f) ^ (~e & g)) + K[t] + W[t]) | 0;
-        const t2 = ((r(a, 2) ^ r(a, 13) ^ r(a, 22)) + ((a & bb) ^ (a & c) ^ (bb & c))) | 0;
-        h = g; g = f; f = e; e = (d + t1) | 0; d = c; c = bb; bb = a; a = (t1 + t2) | 0;
-      }
-      [a, bb, c, d, e, f, g, h].forEach((v, i) => { H[i] = (H[i] + v) | 0; });
-    }
-    return H.map(v => ("00000000" + (v >>> 0).toString(16)).slice(-8)).join("");
-  }
-  CD.sha256 = sha256;
-  CD.cifrar = (sal, pass) => sha256(sal + ":" + pass);
-  CD.nuevaSal = () => Array.from({ length: 8 }, () => "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"[Math.floor(Math.random() * 56)]).join("");
-
   /* ---------------- preferencias del navegador ---------------- */
   const PREFS_BASE = { tema: "claro", sobria: false, fondo: true, grande: false, min: {} };
   CD.prefs = Object.assign({}, PREFS_BASE);
@@ -60,37 +23,96 @@
   };
   CD.aplicarPrefs();
 
-  /* ---------------- estado (cuentas, foros, notificaciones...) ---------------- */
-  const copia = o => JSON.parse(JSON.stringify(o));
-  function semilla() {
-    const S = CD.SEMILLA, E = { v: VERSION, usuarios: {}, foros: [], likes: {}, denuncias: [], notis: {}, avisos: [],
-      avisosCerrados: {}, folleto: {}, solicitudes: [], registro: [], votos: {}, sesion: null, sig: 1 };
-    Object.entries(copia(S.usuarios)).forEach(([id, u]) => {
-      u.id = id; u.rol = u.rol || "usuario";
-      if (!u.hash) { u.sal = CD.nuevaSal(); u.hash = sha256(u.sal + Math.random()); }
-      u.registro = u.registro || "2026-10-15";
-      u.config = { avisarTodos: false, avisarParticipo: true, avisarLikes: true };
-      E.usuarios[id] = u;
+  /* ---------------- conexión con Supabase ---------------- */
+  CD.SUPA_URL = "https://lbikxnybdpmegvyuvzgf.supabase.co";
+  CD.SUPA_KEY = "sb_publishable_Clp90myn97JtNM0KJehvaw_ybwPIbFX";
+  CD.sb = window.supabase.createClient(CD.SUPA_URL, CD.SUPA_KEY, { auth: { persistSession: true, autoRefreshToken: true } });
+  CD.E = { usuarios: {}, foros: [], likes: {}, votos: {}, conteos: {}, denuncias: [], notis: {}, avisos: [], avisosCerrados: {},
+    folleto: {}, solicitudes: [], registro: [], recuperaciones: [], sesion: null };
+  CD.errTexto = e => String((e && (e.message || e.error_description)) || e || "Error").replace(/^[A-ZÁÉÍÓÚ]+: /, "");
+  const ok = r => { if (r.error) throw r.error; return r.data; };
+  const lista = r => ok(r) || [];
+  try { CD.E.folleto.anon = localStorage.getItem("cd_folleto_anon") === "1"; } catch (e) {}
+
+  /* trae todo el foro desde la base de datos y lo deja en CD.E */
+  CD.cargar = async () => {
+    const sb = CD.sb;
+    const { data: ses } = await sb.auth.getSession();
+    const uid = ses && ses.session ? ses.session.user.id : null;
+    const [pubs, foros, msgs, likes, conteos, avisos] = await Promise.all([
+      sb.from("publicos").select("*").then(lista),
+      sb.from("foros").select("*").order("id").then(lista),
+      sb.from("mensajes").select("*").order("id").then(lista),
+      sb.from("likes").select("mensaje_id,usuario").then(lista),
+      sb.rpc("conteo_votos").then(lista),
+      sb.from("avisos").select("*").order("id").then(lista)
+    ]);
+    let propio = [], privs = [], borr = [], votos = [], dens = [], notis = [], cerr = [], sols = [], reg = [], recs = [];
+    if (uid) {
+      [propio, privs, borr, votos, dens, notis, cerr, sols] = await Promise.all([
+        sb.from("perfiles").select("*").eq("id", uid).then(lista),
+        sb.from("privados").select("*").then(lista),
+        sb.from("borrados").select("*").then(lista),
+        sb.from("votos").select("*").then(lista),
+        sb.from("denuncias").select("*").then(lista),
+        sb.from("notificaciones").select("*").order("creado", { ascending: false }).then(lista),
+        sb.from("avisos_cerrados").select("*").then(lista),
+        sb.from("solicitudes").select("*").then(lista)
+      ]);
+      const rol = (pubs.find(p => p.id === uid) || {}).rol;
+      if (rol === "moderador" || rol === "admin") reg = await sb.from("registro_mod").select("*").order("creado", { ascending: false }).limit(200).then(lista);
+      if (rol === "admin") recs = await sb.from("recuperaciones").select("*").order("creado", { ascending: false }).then(lista);
+    }
+    const E = { usuarios: {}, foros: [], likes: {}, votos: {}, conteos: {}, denuncias: [], notis: {}, avisos: [], avisosCerrados: {},
+      folleto: { anon: CD.E.folleto.anon }, solicitudes: [], registro: [], recuperaciones: recs, sesion: null };
+    pubs.forEach(p => {
+      E.usuarios[p.id] = { id: p.id, nombre: p.nombre, rol: p.rol, av: p.av, on: !!p.en_linea, suspendido: p.suspendido,
+        registro: (p.creado || "").slice(0, 10),
+        perfil: { uni: p.uni, carrera: p.carrera, estudia: !!p.uni, ocupacion: p.ocupacion, trabaja: !!p.ocupacion, edadPub: p.edad,
+          pub: { estudios: p.pub_estudios, edad: p.pub_edad } } };
     });
-    E.foros = copia(S.foros).map(f => {
-      f.mensajes.forEach((m, i) => { m.id = f.id + "-" + i; });
-      if (f.encuesta) f.encuesta.opciones.forEach(o => { o.votos.forEach(v => { (E.votos[f.id] = E.votos[f.id] || {})[v] = f.encuesta.opciones.indexOf(o); }); });
-      return f;
+    privs.forEach(v => {
+      const u = E.usuarios[v.id]; if (!u) return;
+      Object.assign(u.perfil, { correo: v.correo, edadModo: v.edad_modo, nacimiento: v.nacimiento, anio: v.anio, edad: v.edad_registro,
+        edadAnioRegistro: v.anio_registro, sexo: v.sexo, genero: v.genero, estudia: !!v.estudia, uni: v.uni, carrera: v.carrera,
+        trabaja: !!v.trabaja, ocupacion: v.ocupacion, encuestaFinal: v.encuesta_final, privado: true });
+      u.config = { avisarTodos: v.avisar_todos, avisarParticipo: v.avisar_participo, avisarLikes: v.avisar_likes };
+      if (v.id === uid) E.folleto[uid] = v.folleto_visto;
     });
-    S.denuncias.forEach(d => E.denuncias.push({ id: "d" + E.sig++, msg: d.foro + "-" + d.msg, foro: d.foro, por: d.por, motivo: d.motivo, min: d.min, estado: "pendiente" }));
-    S.solicitudes.forEach(s => E.solicitudes.push(Object.assign({ id: "s" + E.sig++, estado: "pendiente" }, s)));
-    S.registro.forEach(l => E.registro.push(Object.assign({}, l)));
-    Object.entries(copia(S.notis)).forEach(([uid, lista]) => { E.notis[uid] = lista.map(n => Object.assign({ id: "n" + E.sig++ }, n)); });
+    if (uid && E.usuarios[uid]) {
+      E.sesion = uid;
+      const p = propio[0] || {};
+      E.usuarios[uid].debeCambiarNombre = p.debe_cambiar_nombre; E.usuarios[uid].debeCambiarClave = p.debe_cambiar_clave;
+      E.usuarios[uid].on = true;
+    }
+    const textoBorrado = {}; borr.forEach(b => { textoBorrado[b.mensaje_id] = b.texto; });
+    const porForo = {};
+    msgs.forEach(m => {
+      (porForo[m.foro_id] = porForo[m.foro_id] || []).push({ id: m.id, foro: m.foro_id, de: m.autor, ts: Date.parse(m.creado), likes: m.likes_base, texto: m.texto,
+        eliminado: m.eliminado_por ? { por: m.eliminado_por, motivo: m.eliminado_motivo, texto: textoBorrado[m.id] } : null });
+    });
+    E.foros = foros.map(f => ({ id: f.id, autor: f.autor, titulo: f.titulo, pregunta: f.pregunta, destacado: f.destacado, ts: Date.parse(f.creado),
+      encuesta: f.enc_pregunta ? { pregunta: f.enc_pregunta, publica: f.enc_publica, opciones: (f.enc_opciones || []).map(t => ({ t })) } : null,
+      mensajes: porForo[f.id] || [] }));
+    likes.forEach(l => { (E.likes[l.mensaje_id] = E.likes[l.mensaje_id] || {})[l.usuario] = true; });
+    conteos.forEach(c => { (E.conteos[c.foro_id] = E.conteos[c.foro_id] || [0, 0, 0])[c.opcion] = Number(c.n); });
+    votos.forEach(v => { (E.votos[v.foro_id] = E.votos[v.foro_id] || {})[v.usuario] = v.opcion; });
+    const foroDe = {}; msgs.forEach(m => { foroDe[m.id] = m.foro_id; });
+    E.denuncias = dens.map(d => ({ id: d.id, msg: d.mensaje_id, foro: foroDe[d.mensaje_id], por: d.por, motivo: d.motivo, estado: d.estado, ts: Date.parse(d.creado) }));
+    if (uid) E.notis[uid] = notis.map(n => Object.assign({}, n.datos, { id: n.id, tipo: n.tipo, ts: Date.parse(n.creado) }));
+    E.avisos = avisos.map(a => ({ id: String(a.id), autor: a.autor, titulo: a.titulo, texto: a.texto, boton: a.boton, fijo: a.fijo, foro: a.foro_id, ts: Date.parse(a.creado) }));
+    if (uid) { E.avisosCerrados[uid] = {}; cerr.forEach(c => { E.avisosCerrados[uid][c.aviso_id] = true; }); }
+    E.solicitudes = sols.map(s => ({ id: s.id, usuario: s.usuario, campo: s.campo, valor: s.campo === "edad" ? +s.valor : s.valor, estado: s.estado, ts: Date.parse(s.creado) }));
+    E.registro = reg.map(l => ({ por: l.por, ts: Date.parse(l.creado), accion: l.accion, motivo: l.motivo }));
+    CD.E = E;
     return E;
-  }
-  try { const g = JSON.parse(localStorage.getItem(CLAVE) || "null"); if (g && g.v === VERSION) CD.E = g; } catch (e) {}
-  if (!CD.E) CD.E = semilla();
-  CD.guardar = () => { try { localStorage.setItem(CLAVE, JSON.stringify(CD.E)); } catch (e) { CD.toast("No se pudo guardar: el navegador no tiene espacio."); } };
-  CD.reiniciarDemo = () => { try { localStorage.removeItem(CLAVE); } catch (e) {} };
-  CD.nuevoId = p => p + (CD.E.sig++);
+  };
+  /* llama una función de la base de datos y devuelve el resultado o lanza el error en español */
+  CD.rpc = async (fn, args) => { const r = await CD.sb.rpc(fn, args || {}); if (r.error) throw new Error(CD.errTexto(r.error)); return r.data; };
+  CD.tabla = async promesa => { const r = await promesa; if (r.error) throw new Error(CD.errTexto(r.error)); return r.data; };
 
   /* ---------------- tiempo ---------------- */
-  CD.tsDe = x => x.ts || (CD.AHORA - (x.min || 0) * 60000);
+  CD.tsDe = x => x.ts || Date.now();
   CD.hace = ts => {
     const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
     if (s < 60) return "ahora";
@@ -113,8 +135,7 @@
   CD.esMod = u => !!u && (u.rol === "moderador" || u.rol === "admin");
   CD.esAdmin = u => !!u && u.rol === "admin";
   CD.porNombre = nombre => Object.values(CD.E.usuarios).find(u => CD.norm(u.nombre) === CD.norm(nombre));
-  CD.porCorreo = c => Object.values(CD.E.usuarios).find(u => (u.perfil.correo || "").toLowerCase() === String(c).trim().toLowerCase());
-  CD.enLinea = u => u.on || (CD.E.sesion === u.id);
+  CD.enLinea = u => !!u.on || (CD.E.sesion === u.id);
 
   CD.edadDesdeFecha = (iso, hoy) => {
     const n = new Date(iso + "T00:00:00"), h = hoy || new Date();
@@ -125,17 +146,20 @@
   CD.edad = u => {
     const p = u.perfil || {};
     if (p.edadModo === "fecha" && p.nacimiento) return CD.edadDesdeFecha(p.nacimiento);
-    if (p.edad != null) return p.edad + (new Date().getFullYear() - (p.edadAnioRegistro || 2026));
-    return null;
+    if (p.edadModo === "anio" && p.edad != null) return p.edad + (new Date().getFullYear() - (p.edadAnioRegistro || new Date().getFullYear()));
+    return p.edadPub != null ? p.edadPub : null;
   };
 
-  /* login: devuelve el usuario o un texto de error */
-  CD.login = (nombre, pass) => {
-    const u = CD.porNombre(nombre);
-    if (!u || CD.cifrar(u.sal, pass) !== u.hash) return "El nombre de usuario o la contraseña no coinciden.";
-    CD.E.sesion = u.id; CD.guardar(); return u;
+  /* login con nombre de usuario: devuelve el id o un texto de error */
+  CD.login = async (nombre, pass) => {
+    let correo;
+    try { correo = await CD.rpc("correo_login", { p_nombre: nombre }); } catch (e) { return "No pude conectar con el servidor. Revisa tu internet."; }
+    if (!correo) return "El nombre de usuario o la contraseña no coinciden.";
+    const r = await CD.sb.auth.signInWithPassword({ email: correo, password: pass });
+    if (r.error) return /invalid/i.test(r.error.message) ? "El nombre de usuario o la contraseña no coinciden." : CD.errTexto(r.error);
+    return { id: r.data.user.id };
   };
-  CD.logout = () => { CD.E.sesion = null; CD.guardar(); };
+  CD.logout = async () => { await CD.sb.auth.signOut(); };
   CD.claveVisto = () => CD.E.sesion || "anon";
 
   /* contraseña fuerte para cuentas nuevas */
@@ -148,14 +172,6 @@
   ];
   CD.passFuerte = p => CD.reglasPass(p).every(r => r.ok);
   CD.nombreValido = n => /^@?[A-Za-zÁÉÍÓÚÑáéíóúñ0-9._]{3,20}$/.test(n);
-
-  /* ---------------- notificaciones ---------------- */
-  CD.notificar = (uid, n) => {
-    if (!uid || !CD.E.usuarios[uid]) return;
-    (CD.E.notis[uid] = CD.E.notis[uid] || []).unshift(Object.assign({ id: CD.nuevoId("n"), ts: Date.now() }, n));
-  };
-  CD.notificarMods = n => Object.values(CD.E.usuarios).filter(CD.esMod).forEach(u => CD.notificar(u.id, n));
-  CD.anotar = (accion, motivo) => { const y = CD.yo(); CD.E.registro.unshift({ por: y ? y.id : "?", ts: Date.now(), accion, motivo: motivo || "" }); };
 
   /* ---------------- avatares ---------------- */
   let nAv = 0;

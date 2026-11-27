@@ -27,8 +27,9 @@
 <script src="js/vendor/d3-geo.min.js"></script>
 <script src="js/vendor/tierra.js"></script>
 <script src="js/datos.js"></script>
+<script src="js/vendor/supabase.js"></script>
 <script src="js/nucleo.js"></script>
 <script src="js/fondo.js"></script>
-<script>try{CD.E.folleto[CD.claveVisto()]=true;CD.guardar();}catch(e){}CD.botonTema(CD.$("#btnTema"));</script>
+<script>CD.botonTema(CD.$("#btnTema"));CD.sb.auth.getSession().then(function(r){var s=r.data&&r.data.session;if(s)return CD.sb.from("privados").update({folleto_visto:true}).eq("id",s.user.id);try{localStorage.setItem("cd_folleto_anon","1")}catch(e){}});</script>
 </body>
 </html>

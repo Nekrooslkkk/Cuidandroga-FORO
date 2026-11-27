@@ -1,16 +1,34 @@
 /* CUIDANDROGA · app.js — página principal del foro */
 (function () {
   "use strict";
-  const CD = window.CD, E = CD.E, $ = CD.$, $$ = CD.$$, esc = CD.esc, ic = CD.ic;
-  const yo = CD.yo();
-  const esMod = CD.esMod(yo), esAdmin = CD.esAdmin(yo);
+  const CD = window.CD, $ = CD.$, $$ = CD.$$, esc = CD.esc, ic = CD.ic;
+  let E = CD.E, yo = null, esMod = false, esAdmin = false;
   const noLeidos = {}, minimizados = [], avisosCerradosAnon = {};
   ic.burbuja = '<svg class="ico" viewBox="0 0 16 16"><path d="M2 2.5h12v8H7l-3.5 3v-3H2z"/></svg>';
   ic.megafono = '<svg class="ico" viewBox="0 0 16 16"><path d="M1.5 6h3l7-4v12l-7-4h-3zM5 10.5l1.2 4h2l-1-4"/></svg>';
   ic.folleto = '<svg class="ico" viewBox="0 0 16 16"><path d="M1.5 3l4.3-1.5 4.4 1.5 4.3-1.5v11.5l-4.3 1.5-4.4-1.5L1.5 14.5z"/></svg>';
 
   const foro = id => E.foros.find(f => f.id === +id);
-  const msgPorId = id => { const f = foro(String(id).split("-")[0]); return f ? { f, m: f.mensajes.find(x => x.id === id) } : {}; };
+  const msgPorId = id => { for (const f of E.foros) { const m = f.mensajes.find(x => x.id === +id); if (m) return { f, m }; } return {}; };
+  /* vuelve a traer todo desde Supabase y repinta */
+  let cargando = null;
+  async function refrescar(desdeSondeo) {
+    if (cargando) return cargando;
+    cargando = (async () => {
+      const antes = {}; E.foros.forEach(f => { antes[f.id] = f.mensajes.length; });
+      try { E = await CD.cargar(); } catch (e) { if (!desdeSondeo) CD.toast("No pude conectar con el servidor. Revisa tu internet."); return; } finally { cargando = null; }
+      yo = CD.yo(); esMod = CD.esMod(yo); esAdmin = CD.esAdmin(yo);
+      E.foros.forEach(f => { if (antes[f.id] != null && f.mensajes.length > antes[f.id] && (!abierto || abierto.id !== f.id)) noLeidos[f.id] = true; });
+      const escribiendo = document.activeElement && document.activeElement.id === "hmTexto";
+      pintarBarra(); pintarAvisos(); pintarTablones(); pintarNotis(); pintarActivos();
+      if (abierto && !(desdeSondeo && escribiendo)) pintarHilo(true);
+    })();
+    return cargando;
+  }
+  async function hacer(promesa, exito) {
+    try { const r = await promesa; if (exito) CD.toast(exito); await refrescar(); return r === undefined ? true : r; }
+    catch (e) { CD.toast(CD.errTexto(e)); return null; }
+  }
   const nombre = id => CD.u(id).nombre;
   const nLikes = m => (m.likes || 0) + Object.keys(E.likes[m.id] || {}).length;
   const participa = (f, uid) => f.mensajes.some(m => m.de === uid);
@@ -94,7 +112,8 @@
     solicitudRes: n => ({ ico: "escudo", t: n.ok ? "Aprobamos tu cambio de datos" : "No aprobamos tu cambio de datos", cuenta: true }),
     rol: n => ({ ico: "escudo", t: n.rol === "moderador" ? "Ahora eres moderador" : "Ya no eres moderador" }),
     suspension: n => ({ ico: "escudo", cls: "mod", t: n.si ? "Tu cuenta fue suspendida" : "Tu cuenta fue reactivada", s: n.si ? "Puedes leer, pero no participar." : "" }),
-    bienvenida: () => ({ ico: "estrella", t: "¡Bienvenido/a a CUIDANDROGA!", s: "Ya puedes responder, dar Like y votar en las encuestas." })
+    bienvenida: () => ({ ico: "estrella", t: "¡Bienvenido/a a CUIDANDROGA!", s: "Ya puedes responder, dar Like y votar en las encuestas." }),
+    recuperacion: () => ({ ico: "sobre", cls: "mod", t: "Alguien pidió recuperar su contraseña", s: "Revisa el panel: Recuperaciones", panel: "recuperaciones" })
   };
   function pintarNotis() {
     let h = '<a class="noti folleto" href="folleto.html"><span class="noti-ico">' + ic.folleto + '</span><span class="noti-c"><b>Observa el folleto</b><small>Lo que tienes que saber para cuidarte</small></span></a>';
@@ -141,12 +160,12 @@
     el.classList.add("foco"); setTimeout(() => el.classList.remove("foco"), 1600);
   }
   function encuestaHTML(f) {
-    const e = f.encuesta, votos = E.votos[f.id] || {}, total = Object.keys(votos).length;
+    const e = f.encuesta, votos = E.votos[f.id] || {}, conteo = E.conteos[f.id] || [0, 0, 0], total = conteo.reduce((a, b) => a + b, 0);
     const mio = yo ? votos[yo.id] : undefined, ver = mio !== undefined || esAdmin;
     let h = '<div class="encuesta"><div class="enc-cab">' + ic.encuesta + '<b>ENCUESTA</b><span>' + (e.publica ? "Pública: todos ven quién votó" : "Anónima") + '</span></div>' +
       '<p class="enc-preg">' + esc(e.pregunta) + '</p>';
     e.opciones.forEach((o, i) => {
-      const quienes = Object.keys(votos).filter(k => votos[k] === i), n = quienes.length, pct = total ? Math.round(n * 100 / total) : 0;
+      const quienes = Object.keys(votos).filter(k => votos[k] === i), n = conteo[i] || 0, pct = total ? Math.round(n * 100 / total) : 0;
       if (!ver) { h += '<button class="enc-op" data-votar="' + f.id + ':' + i + '"><span class="radio"></span>' + esc(o.t) + '</button>'; return; }
       const caras = (e.publica || esAdmin) && n ? '<span class="enc-caras">' + quienes.slice(0, 8).map(k => '<span title="' + esc(nombre(k)) + '">' + CD.avatar(CD.u(k).av) + '</span>').join("") + (n > 8 ? '<i>+' + (n - 8) + '</i>' : "") + '</span>' : "";
       h += '<div class="enc-res' + (mio === i ? " mio" : "") + '"><div class="enc-res-l"><span>' + esc(o.t) + (mio === i ? " ✓" : "") + '</span><b>' + pct + '% · ' + n + '</b></div>' +
@@ -165,7 +184,7 @@
     if (m.eliminado) {
       const veo = esMod || (yo && yo.id === m.de);
       return '<article class="msg borrado" id="m-' + m.id + '">' + cab + '</div></header><div class="msg-txt">Mensaje eliminado por ' + esc(nombre(m.eliminado.por)) +
-        (veo ? '<br><s>' + esc(m.texto) + '</s>' + (m.eliminado.motivo ? '<br><small>Motivo: ' + esc(m.eliminado.motivo) + '</small>' : "") : "") + '</div></article>';
+        (veo && m.eliminado.texto ? '<br><s>' + esc(m.eliminado.texto) + '</s>' + (m.eliminado.motivo ? '<br><small>Motivo: ' + esc(m.eliminado.motivo) + '</small>' : "") : "") + '</div></article>';
     }
     const propio = yo && yo.id === m.de, yl = yo && E.likes[m.id] && E.likes[m.id][yo.id];
     const den = yo && E.denuncias.some(d => d.msg === m.id && d.por === yo.id);
@@ -204,16 +223,14 @@
     const form = v.querySelector("#hmRedactar");
     if (form) form.onsubmit = e => { e.preventDefault(); responder(f, v.querySelector("#hmTexto").value.trim()); };
   }
-  function responder(f, texto) {
+  async function responder(f, texto) {
     if (!texto || necesitaCuenta("responder")) return;
-    const m = { id: f.id + "-" + f.mensajes.length, de: yo.id, ts: Date.now(), likes: 0, texto };
-    f.mensajes.push(m);
-    const avisados = new Set([yo.id]);
-    if (!avisados.has(f.autor)) { CD.notificar(f.autor, { tipo: "respuesta", de: yo.id, foro: f.id }); avisados.add(f.autor); }
-    f.mensajes.forEach(x => { if (!avisados.has(x.de)) { const u = CD.u(x.de); if (!u.config || u.config.avisarParticipo) CD.notificar(x.de, { tipo: "respuesta", de: yo.id, foro: f.id }); avisados.add(x.de); } });
-    CD.guardar(); abierto.para = f.autor;
-    abierto.v.querySelector("#hmTexto").value = "";
-    pintarHilo(); pintarTablones(); enfocar(m.id);
+    const boton = abierto.v.querySelector("#hmRedactar .btn-aero"); boton.disabled = true;
+    try {
+      const nuevo = await CD.tabla(CD.sb.from("mensajes").insert({ foro_id: f.id, autor: yo.id, texto }).select("id").single());
+      abierto.v.querySelector("#hmTexto").value = ""; abierto.para = f.autor;
+      await refrescar(); pintarHilo(); enfocar(nuevo.id);
+    } catch (e) { CD.toast(CD.errTexto(e)); boton.disabled = false; }
   }
 
   /* minimizar el foro a la barra de abajo */
@@ -224,51 +241,43 @@
   /* ===================== acciones dentro del foro ===================== */
   function darLike(mid) {
     if (necesitaCuenta("dar Like")) return;
-    const { f, m } = msgPorId(mid); if (!m) return;
-    const l = E.likes[mid] = E.likes[mid] || {};
-    if (l[yo.id]) delete l[yo.id];
-    else { l[yo.id] = true; const au = CD.u(m.de); if (m.de !== yo.id && (!au.config || au.config.avisarLikes)) CD.notificar(m.de, { tipo: "like", de: yo.id, foro: f.id }); }
-    CD.guardar(); pintarHilo(true);
+    const { m } = msgPorId(mid); if (!m) return;
+    const l = E.likes[m.id] = E.likes[m.id] || {}, tenia = !!l[yo.id];
+    if (tenia) delete l[yo.id]; else l[yo.id] = true;
+    pintarHilo(true);
+    const q = tenia ? CD.sb.from("likes").delete().match({ mensaje_id: m.id, usuario: yo.id }) : CD.sb.from("likes").insert({ mensaje_id: m.id, usuario: yo.id });
+    hacer(CD.tabla(q));
   }
   function denunciar(mid) {
     if (necesitaCuenta("denunciar")) return;
-    if (E.denuncias.some(d => d.msg === mid && d.por === yo.id)) return CD.toast("Ya denunciaste este mensaje. Lo vamos a revisar.");
+    if (E.denuncias.some(d => d.msg === +mid && d.por === yo.id)) return CD.toast("Ya denunciaste este mensaje. Lo vamos a revisar.");
     const v = CD.modal(CD.cap("DENUNCIAR MENSAJE", { icono: '<span class="cap-ico rojo">' + ic.bandera + '</span>' }) +
       '<form class="dlg-cuerpo frag"><p>¿Por qué denuncias este mensaje? Lo revisa un moderador.</p><div class="opciones">' +
       CD.MOTIVOS.map((t, i) => '<label class="opcion"><input type="radio" name="mot" value="' + esc(t) + '"' + (i ? "" : " checked") + '><span>' + esc(t) + '</span></label>').join("") +
       '</div><div class="dlg-pie"><button class="btn-aero">' + ic.bandera + 'Denunciar</button><button type="button" class="btn-vista" data-cerrar>Cancelar</button></div></form>', "dialogo chico");
     v.querySelector("form").onsubmit = e => {
       e.preventDefault();
-      const { f } = msgPorId(mid);
-      E.denuncias.push({ id: CD.nuevoId("d"), msg: mid, foro: f.id, por: yo.id, motivo: v.querySelector("input:checked").value, ts: Date.now(), estado: "pendiente" });
-      CD.notificarMods({ tipo: "denuncia", de: yo.id });
-      CD.guardar(); v.cerrar(); CD.toast("Gracias. Un moderador va a revisar el mensaje."); pintarHilo(true); pintarNotis();
+      const motivo = v.querySelector("input:checked").value; v.cerrar();
+      hacer(CD.tabla(CD.sb.from("denuncias").insert({ mensaje_id: +mid, por: yo.id, motivo })), "Gracias. Un moderador va a revisar el mensaje.");
     };
   }
   async function borrarMensaje(mid, motivoBase) {
-    const { f, m } = msgPorId(mid); if (!m || !esMod) return;
+    const { m } = msgPorId(mid); if (!m || !esMod) return;
     const motivo = await CD.preguntar("BORRAR MENSAJE", "Motivo (lo verá " + nombre(m.de) + ")", motivoBase || "Promueve el consumo", "Borrar mensaje");
     if (!motivo) return;
-    m.eliminado = { por: yo.id, motivo };
-    E.denuncias.forEach(d => { if (d.msg === mid) d.estado = "resuelta"; });
-    CD.notificar(m.de, { tipo: "borrado", foro: f.id, por: yo.id, cita: m.texto.length > 90 ? m.texto.slice(0, 90) + "…" : m.texto });
-    CD.anotar("Borró un mensaje de " + nombre(m.de) + " en el Foro #" + f.id, motivo);
-    CD.guardar(); CD.toast("Mensaje borrado y " + nombre(m.de) + " fue notificado.");
-    pintarHilo(true); pintarTablones(); pintarNotis(); refrescarPanel();
+    await hacer(CD.rpc("borrar_mensaje", { p_id: m.id, p_motivo: motivo }), "Mensaje borrado y " + nombre(m.de) + " fue notificado.");
+    refrescarPanel();
   }
   async function advertir(uid) {
     const u = CD.u(uid);
     const t = await CD.preguntar("MENSAJE A " + u.nombre.toUpperCase(), "Mensaje de moderación", "Hola, te escribimos de moderación: ", "Enviar");
     if (!t) return;
-    CD.notificar(uid, { tipo: "dm", por: yo.id, texto: t });
-    CD.anotar("Le envió una advertencia a " + u.nombre, t);
-    CD.guardar(); CD.toast("Mensaje enviado a " + u.nombre + ".");
+    await hacer(CD.rpc("advertir", { p_uid: uid, p_texto: t }), "Mensaje enviado a " + u.nombre + ".");
     refrescarPanel();
   }
   function votar(fid, op) {
     if (necesitaCuenta("votar")) return;
-    (E.votos[fid] = E.votos[fid] || {})[yo.id] = op;
-    CD.guardar(); pintarHilo(true);
+    hacer(CD.tabla(CD.sb.from("votos").insert({ foro_id: fid, usuario: yo.id, opcion: op })));
   }
 
   /* ===================== mini perfil ===================== */
@@ -292,9 +301,12 @@
       '<p class="login-links">¿No estás registrado? <a href="registro.html">Regístrate</a></p>' +
       '<p class="login-links"><a href="#" data-olvide>¿Olvidaste tu contraseña?</a></p></div></form>', "dialogo login-v");
     const form = v.querySelector("form");
-    form.onsubmit = e => {
+    form.onsubmit = async e => {
       e.preventDefault();
-      const r = CD.login(form.u.value, form.p.value), err = form.querySelector(".error");
+      const boton = form.querySelector(".btn-aero"); boton.disabled = true;
+      const id = await CD.login(form.u.value, form.p.value), err = form.querySelector(".error");
+      boton.disabled = false;
+      const r = typeof id === "string" ? id : (await CD.cargar(), CD.u(id.id));
       if (typeof r === "string") { err.textContent = r; err.hidden = false; v.classList.remove("temblor"); void v.offsetWidth; v.classList.add("temblor"); return; }
       form.querySelector(".login-foto").innerHTML = CD.avatar(r.av);
       form.querySelector(".login-foto").classList.add("aparece");
@@ -309,34 +321,15 @@
     const v = CD.modal(CD.cap("¿OLVIDASTE TU CONTRASEÑA?") + CD.banda('<span class="banda-titulo">Recuperar cuenta</span>') +
       '<div class="dlg-cuerpo frag olvide"><section class="olv-op"><h4>' + ic.escudo + 'Pregúntale a un moderador por Instagram</h4>' +
       '<p>Pronto vamos a publicar acá los usuarios de Instagram de los moderadores.</p></section>' +
-      '<section class="olv-op"><h4>' + ic.sobre + 'Recupérala con tu correo</h4><form class="olv-paso" data-paso="1"><label>Tu correo<input type="email" required placeholder="tucorreo@ejemplo.cl"></label>' +
-      '<p class="error" hidden></p><button class="btn-aero">Enviar código</button></form></section></div>', "dialogo");
-    let cuenta = null, codigo = "";
-    const sec = v.querySelectorAll(".olv-op")[1];
-    sec.addEventListener("submit", e => {
+      '<section class="olv-op"><h4>' + ic.sobre + 'Recupérala con tu correo</h4><form class="olv-paso"><label>Tu correo<input type="email" required placeholder="tucorreo@ejemplo.cl"></label>' +
+      '<p class="error" hidden></p><button class="btn-aero">Pedir contraseña temporal</button></form></section></div>', "dialogo");
+    v.querySelector("form").onsubmit = async e => {
       e.preventDefault();
-      const f = e.target, paso = f.dataset.paso, err = f.querySelector(".error");
-      const mal = t => { err.textContent = t; err.hidden = false; };
-      if (paso === "1") {
-        cuenta = CD.porCorreo(f.querySelector("input").value);
-        if (!cuenta) return mal("No encontramos una cuenta con ese correo.");
-        codigo = String(Math.floor(100000 + Math.random() * 900000));
-        f.outerHTML = '<form class="olv-paso" data-paso="2"><p>Te enviamos un código de 6 números a tu correo.</p>' +
-          '<div class="correo-demo"><b>Correo simulado (demo)</b>Tu código de CUIDANDROGA es <code>' + codigo + '</code></div>' +
-          '<label>Código<input inputmode="numeric" maxlength="6" required></label><p class="error" hidden></p><button class="btn-aero">Verificar</button></form>';
-      } else if (paso === "2") {
-        if (f.querySelector("input").value.trim() !== codigo) return mal("El código no coincide.");
-        f.outerHTML = '<form class="olv-paso" data-paso="3"><label>Contraseña nueva<input type="password" required></label><ul class="reglas"></ul>' +
-          '<label>Repite la contraseña<input type="password" required></label><p class="error" hidden></p><button class="btn-aero">Guardar contraseña</button></form>';
-        const nf = sec.querySelector("form"); nf.addEventListener("input", () => reglas(nf)); reglas(nf);
-      } else {
-        const [a, b] = f.querySelectorAll("input");
-        if (!CD.passFuerte(a.value)) return mal("La contraseña todavía no cumple todo.");
-        if (a.value !== b.value) return mal("Las contraseñas no coinciden.");
-        cuenta.sal = CD.nuevaSal(); cuenta.hash = CD.cifrar(cuenta.sal, a.value); CD.guardar();
-        v.cerrar(); CD.toast("¡Listo! Ya puedes entrar con tu nueva contraseña."); abrirLogin();
-      }
-    });
+      const f = e.target, correo = f.querySelector("input").value;
+      try { await CD.rpc("pedir_recuperacion", { p_correo: correo }); }
+      catch (er) { const err = f.querySelector(".error"); err.textContent = CD.errTexto(er); err.hidden = false; return; }
+      f.outerHTML = '<p class="nota">Listo. Si ese correo tiene una cuenta, un administrador te va a escribir con una contraseña temporal. Cuando entres, te vamos a pedir que la cambies.</p>';
+    };
   }
   function reglas(form) {
     const p = form.querySelector("input[type=password]").value;
@@ -352,6 +345,7 @@
       const p = yo.perfil, c = yo.config || (yo.config = { avisarTodos: false, avisarParticipo: true, avisarLikes: true });
       const tabs = [["perfil", "Perfil"], ["privacidad", "Privacidad"], ["notis", "Notificaciones"], ["diseno", "Diseño"], ["seguridad", "Seguridad"]];
       let cuerpo = "";
+      if (tab === "seguridad" && yo.debeCambiarClave) cuerpo = '<p class="nota mod">Entraste con una contraseña temporal. Cámbiala ahora: en "Contraseña actual" escribe la temporal.</p>';
       if (tab === "perfil") cuerpo =
         (yo.debeCambiarNombre ? '<p class="nota mod">Moderación cambió tu nombre de usuario de forma temporal. Elige uno nuevo, por favor sin groserías.</p>' : "") +
         '<h4>Foto de perfil</h4><div id="cEditor"></div><div class="dlg-pie izq"><button class="btn-aero" data-guardar-foto>Guardar foto</button></div>' +
@@ -372,7 +366,7 @@
         '<label class="check"><input type="checkbox" data-pref="grande"' + (CD.prefs.grande ? " checked" : "") + '> Texto más grande</label>';
       if (tab === "seguridad") {
         const mias = E.solicitudes.filter(s => s.usuario === yo.id);
-        cuerpo = '<h4>Cambiar contraseña</h4><form data-form="pass" class="col-form"><label>Contraseña actual<input type="password" required></label>' +
+        cuerpo += '<h4>Cambiar contraseña</h4><form data-form="pass" class="col-form"><label>Contraseña actual<input type="password" required></label>' +
           '<label>Contraseña nueva<input type="password" required></label><ul class="reglas"></ul><label>Repite la contraseña nueva<input type="password" required></label>' +
           '<p class="error" hidden></p><button class="btn-aero">Cambiar contraseña</button></form>' +
           '<h4>Cambiar mis datos</h4><p>Los cambios de edad, estudios o trabajo los revisa un moderador.</p>' +
@@ -390,19 +384,19 @@
     v.addEventListener("click", e => {
       const b = e.target.closest("button"); if (!b) return;
       if (b.dataset.tab) { tab = b.dataset.tab; pintar(); }
-      else if (b.hasAttribute("data-guardar-foto")) { yo.av = editor.valor(); CD.guardar(); CD.toast("Foto guardada."); pintar(); pintarTodo(); }
-      else if (b.hasAttribute("data-salir")) { CD.logout(); location.reload(); }
+      else if (b.hasAttribute("data-guardar-foto")) { const av = editor.valor(); hacer(CD.tabla(CD.sb.from("perfiles").update({ av }).eq("id", yo.id)), "Foto guardada.").then(() => { yo = CD.yo(); pintar(); }); }
+      else if (b.hasAttribute("data-salir")) { CD.logout().then(() => location.reload()); }
     });
     v.addEventListener("change", e => {
       const t = e.target;
-      if (t.dataset.pub) { yo.perfil.pub[t.dataset.pub] = t.checked; CD.guardar(); pintar(); pintarTodo(); }
-      else if (t.dataset.cfg) { yo.config[t.dataset.cfg] = t.checked; CD.guardar(); }
+      if (t.dataset.pub) { hacer(CD.tabla(CD.sb.from("perfiles").update({ ["pub_" + t.dataset.pub]: t.checked }).eq("id", yo.id))).then(() => { yo = CD.yo(); pintar(); }); }
+      else if (t.dataset.cfg) { const col = { avisarTodos: "avisar_todos", avisarParticipo: "avisar_participo", avisarLikes: "avisar_likes" }[t.dataset.cfg]; hacer(CD.tabla(CD.sb.from("privados").update({ [col]: t.checked }).eq("id", yo.id))); }
       else if (t.dataset.pref) {
         if (t.dataset.pref === "oscuro") CD.prefs.tema = t.checked ? "oscuro" : "claro"; else CD.prefs[t.dataset.pref] = t.checked;
         CD.guardarPrefs();
       } else if (t.name === "campo") campoValor(v);
     });
-    v.addEventListener("submit", e => {
+    v.addEventListener("submit", async e => {
       e.preventDefault();
       const f = e.target, sig = f.nextElementSibling;
       const err = f.querySelector(".error") || (sig && sig.classList.contains("error") ? sig : null);
@@ -410,19 +404,19 @@
       if (f.dataset.form === "nombre") {
         let n = f.querySelector("input").value.trim(); if (n[0] !== "@") n = "@" + n;
         if (!CD.nombreValido(n)) return mal("Usa entre 3 y 20 letras, números, puntos o guiones bajos.");
-        const otro = CD.porNombre(n); if (otro && otro.id !== yo.id) return mal("Ese nombre ya está ocupado.");
-        yo.nombre = n; delete yo.debeCambiarNombre; CD.guardar(); CD.toast("Nombre cambiado a " + n + "."); pintar(); pintarTodo();
+        try { await CD.rpc("cambiar_nombre", { p_nombre: n }); } catch (er) { return mal(CD.errTexto(er)); }
+        CD.toast("Nombre cambiado a " + n + "."); await refrescar(); yo = CD.yo(); pintar();
       } else if (f.dataset.form === "pass") {
         const [a, b, c] = f.querySelectorAll("input");
-        if (CD.cifrar(yo.sal, a.value) !== yo.hash) return mal("La contraseña actual no es correcta.");
         if (!CD.passFuerte(b.value)) return mal("La contraseña nueva todavía no cumple todo.");
         if (b.value !== c.value) return mal("Las contraseñas nuevas no coinciden.");
-        yo.sal = CD.nuevaSal(); yo.hash = CD.cifrar(yo.sal, b.value); CD.guardar(); CD.toast("Contraseña cambiada."); pintar();
+        try { await CD.rpc("cambiar_clave", { p_actual: a.value, p_nueva: b.value }); } catch (er) { return mal(CD.errTexto(er)); }
+        CD.toast("Contraseña cambiada."); await refrescar(); yo = CD.yo(); pintar();
       } else if (f.dataset.form === "solicitud") {
         const campo = f.campo.value, valor = f.querySelector("[name=valor]").value;
         if (!valor) return mal("Elige el nuevo valor.");
-        E.solicitudes.push({ id: CD.nuevoId("s"), usuario: yo.id, campo, valor: campo === "edad" ? +valor : valor, ts: Date.now(), estado: "pendiente" });
-        CD.notificarMods({ tipo: "solicitud", de: yo.id }); CD.guardar(); CD.toast("Listo, un moderador lo va a revisar."); pintar();
+        await hacer(CD.tabla(CD.sb.from("solicitudes").insert({ usuario: yo.id, campo, valor: String(valor) })), "Listo, un moderador lo va a revisar.");
+        pintar();
       }
     });
     pintar();
@@ -450,7 +444,7 @@
   const EMOS = ["😊", "😂", "😢", "😮", "😡", "👍", "🙏", "💚", "💊", "📚"];
   function abrirPublicar() {
     if (necesitaCuenta("publicar")) return;
-    const sig = Math.max(...E.foros.map(f => f.id)) + 1;
+    const sig = Math.max(0, ...E.foros.map(f => f.id)) + 1;
     const v = CD.modal(CD.cap("Nuevo foro - CUIDANDROGA") +
       CD.banda('<span class="pub-anim"><span class="papel"></span><span class="papel p2"></span></span><span class="banda-titulo">Publicar</span>', "messenger") +
       '<form class="pub frag"><div class="pub-barra"><button class="hm-btn" data-enviar>' + ic.responder + 'Enviar</button>' +
@@ -480,19 +474,21 @@
     form.onsubmit = async e => {
       e.preventDefault();
       const err = form.querySelector(".error"), mal = t => { err.textContent = t; err.hidden = false; };
-      const f = { id: sig, autor: yo.id, titulo: form.titulo.value.trim(), pregunta: form.pregunta.value.trim(), ts: Date.now(),
-        mensajes: [{ id: sig + "-0", de: yo.id, ts: Date.now(), likes: 0, texto: form.texto.value.trim() }] };
+      const fila = { autor: yo.id, titulo: form.titulo.value.trim(), pregunta: form.pregunta.value.trim(), destacado: !!(esMod && form.destacar.checked) };
       if (!enc.hidden) {
         const ops = [form.e1.value, form.e2.value, form.e3.value].map(s => s.trim()).filter(Boolean);
         if (!form.ePre.value.trim() || ops.length < 2) return mal("La encuesta necesita una pregunta y al menos 2 opciones.");
-        f.encuesta = { pregunta: form.ePre.value.trim(), publica: form.ePub.checked, opciones: ops.map(t => ({ t, votos: [] })) };
+        Object.assign(fila, { enc_pregunta: form.ePre.value.trim(), enc_opciones: ops, enc_publica: form.ePub.checked });
       }
-      if (esMod && form.destacar.checked) f.destacado = true;
+      const aviso = esAdmin && form.aviso.checked, fijo = esAdmin && form.fijo.checked, texto = form.texto.value.trim();
       v.cerrar();
-      await CD.progreso("Publicando…", "Subiendo tu foro a CUIDANDROGA", 1500);
-      E.foros.push(f);
-      if (esAdmin && form.aviso.checked) E.avisos.push({ id: CD.nuevoId("a"), autor: yo.id, titulo: f.titulo, texto: f.pregunta, fijo: form.fijo.checked, foro: f.id, ts: Date.now() });
-      CD.guardar(); pintarTodo(); abrirForo(f.id);
+      const anim = CD.progreso("Publicando…", "Subiendo tu foro a CUIDANDROGA", 1500);
+      try {
+        const nuevo = await CD.tabla(CD.sb.from("foros").insert(fila).select("id").single());
+        await CD.tabla(CD.sb.from("mensajes").insert({ foro_id: nuevo.id, autor: yo.id, texto }));
+        if (aviso) await CD.rpc("publicar_aviso", { p_titulo: fila.titulo, p_texto: fila.pregunta, p_boton: "", p_fijo: fijo, p_foro: nuevo.id });
+        await anim; await refrescar(); abrirForo(nuevo.id);
+      } catch (er) { await anim; CD.toast(CD.errTexto(er)); }
     };
   }
 
@@ -515,9 +511,7 @@
       e.preventDefault();
       const f = e.target;
       if (f.dataset.form === "aviso") {
-        E.avisos.push({ id: CD.nuevoId("a"), autor: yo.id, titulo: f.titulo.value.trim(), texto: f.texto.value.trim(), boton: f.boton.value || null, fijo: f.fijo.checked, ts: Date.now() });
-        CD.anotar("Publicó un aviso" + (f.fijo.checked ? " fijo" : "") + ": " + f.titulo.value.trim());
-        CD.guardar(); CD.toast("Aviso publicado en el inicio."); pintarPanel(); pintarAvisos();
+        hacer(CD.rpc("publicar_aviso", { p_titulo: f.titulo.value.trim(), p_texto: f.texto.value.trim(), p_boton: f.boton.value, p_fijo: f.fijo.checked, p_foro: null }), "Aviso publicado en el inicio.").then(() => pintarPanel());
       }
     });
   }
@@ -525,7 +519,7 @@
   function pintarPanel() {
     const v = panel.v, pend = pendientes(), sol = E.solicitudes.filter(s => s.estado === "pendiente");
     const tabs = [["usuarios", "Usuarios"], ["denuncias", "Denuncias" + (pend.length ? " (" + pend.length + ")" : "")], ["solicitudes", "Solicitudes" + (sol.length ? " (" + sol.length + ")" : "")]];
-    if (esAdmin) tabs.push(["avisos", "Avisos"]);
+    if (esAdmin) { const rp = E.recuperaciones.filter(r => r.estado === "pendiente").length; tabs.push(["avisos", "Avisos"], ["recuperaciones", "Recuperaciones" + (rp ? " (" + rp + ")" : "")]); }
     tabs.push(["registro", "Registro"]);
     if (esAdmin) tabs.push(["datos", "Datos"]);
     let c = "";
@@ -549,6 +543,12 @@
       '<label class="check"><input type="checkbox" name="fijo"> Aviso fijo: nadie lo puede minimizar ni cerrar</label><button class="btn-aero">Publicar aviso</button></form>' +
       '<h4>Avisos publicados</h4><ul class="lista-simple"><li>Folleto (automático: se muestra hasta que cada persona abre el folleto)</li>' +
       E.avisos.map(a => '<li><b>' + esc(a.titulo) + '</b>' + (a.fijo ? " · fijo" : "") + ' <button class="link" data-aviso-borrar="' + a.id + '">Quitar</button></li>').join("") + '</ul>';
+    if (panel.tab === "recuperaciones") c = E.recuperaciones.length ? E.recuperaciones.map(r => {
+      const u = Object.values(E.usuarios).find(x => (x.perfil.correo || "") === r.correo);
+      return '<div class="pn-caso"><div class="pn-caso-cab">' + (u ? CD.av(u, "act-av") + CD.firma(u) : "<b>Ninguna cuenta con ese correo</b>") + '<span class="pn-num">' + esc(r.estado) + '</span></div>' +
+        '<p class="pn-meta">' + esc(r.correo) + ' · ' + CD.fecha(Date.parse(r.creado)) + '</p>' +
+        (u && r.estado === "pendiente" ? '<div class="dlg-pie izq"><button class="btn-aero" data-pn-temporal="' + u.id + '">Generar contraseña temporal</button></div>' : "") + '</div>';
+    }).join("") : '<p class="pn-vacio">Nadie ha pedido recuperar su contraseña.</p>';
     if (panel.tab === "registro") c = '<ul class="pn-log">' + E.registro.map(l => '<li><time>' + CD.fecha(CD.tsDe(l)) + '</time><b>' + esc(nombre(l.por)) + '</b> ' + esc(l.accion) +
       (l.motivo ? '<small>"' + esc(l.motivo) + '"</small>' : "") + '</li>').join("") + '</ul>';
     if (panel.tab === "datos") c = datosHTML();
@@ -578,7 +578,7 @@
         fila("Sexo", esc(p.sexo || "—")) + fila("Género", esc(p.genero || "—")) +
         fila("Estudia", p.estudia ? esc((CD.UNIS[p.uni] || {}).n + " · " + (CD.CARRERAS[p.carrera] || {}).n) + " " + priv(p.pub.estudios) : "No") +
         (p.estudia ? "" : fila("Trabaja", p.trabaja ? esc(p.ocupacion || "Sí") + " " + priv(p.pub.estudios) : "No")) +
-        fila("Contraseña", '<code class="hash">cifrada · sha256 ' + esc(u.hash.slice(0, 16)) + '…</code>');
+        fila("Contraseña", '<code class="hash">cifrada con bcrypt (ni el admin la puede leer)</code>');
     } else {
       t += fila("Lo que muestra", CD.chips(u) || "Nada (perfil privado)") + fila("Datos privados", "Solo los ve un administrador");
     }
@@ -591,22 +591,22 @@
         (esAdmin && u.rol !== "admin" ? '<button class="btn-vista" data-pn-rol="' + u.id + '">' + (u.rol === "moderador" ? "Quitar moderador" : "Hacer moderador") + '</button>' : "") + '</div>' : "");
   }
   function datosHTML() {
-    const us = Object.values(E.usuarios).filter(u => u.rol === "usuario");
+    const us = Object.values(E.usuarios).filter(u => u.rol === "usuario" && u.perfil.privado);
     const cuenta = fn => { const r = {}; us.forEach(u => { const k = fn(u); if (k) r[k] = (r[k] || 0) + 1; }); return r; };
     const tabla = (tit, o) => '<table class="pn-tabla"><caption>' + tit + '</caption>' + Object.entries(o).sort((a, b) => b[1] - a[1]).map(([k, n]) =>
       '<tr><td>' + esc(k) + '</td><td><div class="barra-prog fija"><i style="width:' + Math.round(n * 100 / us.length) + '%"></i></div></td><td>' + n + '</td></tr>').join("") + '</table>';
     return '<p>' + us.length + ' usuarios (sin contar moderación). Estos datos los ves completos porque eres administrador.</p><div class="pn-tablas">' +
-      tabla("Universidad", cuenta(u => u.perfil.estudia ? CD.UNIS[u.perfil.uni].c : u.perfil.trabaja ? "Trabaja" : "Ni estudia ni trabaja")) +
-      tabla("Carrera", cuenta(u => u.perfil.estudia ? CD.CARRERAS[u.perfil.carrera].n : null)) +
+      tabla("Universidad", cuenta(u => u.perfil.estudia ? (CD.UNIS[u.perfil.uni] || {}).c : u.perfil.trabaja ? "Trabaja" : "Ni estudia ni trabaja")) +
+      tabla("Carrera", cuenta(u => u.perfil.estudia ? (CD.CARRERAS[u.perfil.carrera] || {}).n : null)) +
       tabla("Género", cuenta(u => u.perfil.genero)) + tabla("Sexo", cuenta(u => u.perfil.sexo)) +
       tabla("Edad informada con", cuenta(u => u.perfil.edadModo === "fecha" ? "Fecha de nacimiento" : "Año de nacimiento")) + '</div>' +
-      '<div class="dlg-pie izq"><button class="btn-aero" data-csv>Descargar CSV</button><button class="btn-vista peligro" data-reiniciar>Restablecer la demo</button></div>';
+      '<div class="dlg-pie izq"><button class="btn-aero" data-csv>Descargar CSV</button></div>';
   }
   function csv() {
     const col = ["usuario", "rol", "correo", "edad", "modo_edad", "nacimiento_o_anio", "sexo", "genero", "estudia", "universidad", "carrera", "trabaja", "ocupacion", "estudios_publicos", "edad_publica", "registro"];
     const q = s => '"' + String(s == null ? "" : s).replace(/"/g, '""') + '"';
-    const filas = Object.values(E.usuarios).map(u => { const p = u.perfil; return [u.nombre, u.rol, p.correo, CD.edad(u), p.edadModo, p.edadModo === "fecha" ? p.nacimiento : p.anio, p.sexo, p.genero,
-      p.estudia ? "si" : "no", p.estudia ? CD.UNIS[p.uni].n : "", p.estudia ? CD.CARRERAS[p.carrera].n : "", p.trabaja ? "si" : "no", p.ocupacion || "", p.pub.estudios ? "si" : "no", p.pub.edad ? "si" : "no", u.registro].map(q).join(","); });
+    const filas = Object.values(E.usuarios).filter(u => u.perfil.privado).map(u => { const p = u.perfil; return [u.nombre, u.rol, p.correo, CD.edad(u), p.edadModo, p.edadModo === "fecha" ? p.nacimiento : p.anio, p.sexo, p.genero,
+      p.estudia ? "si" : "no", p.estudia ? (CD.UNIS[p.uni] || {}).n : "", p.estudia ? (CD.CARRERAS[p.carrera] || {}).n : "", p.trabaja ? "si" : "no", p.ocupacion || "", p.pub.estudios ? "si" : "no", p.pub.edad ? "si" : "no", u.registro].map(q).join(","); });
     const b = new Blob(["﻿" + col.join(",") + "\n" + filas.join("\n")], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "cuidandroga-usuarios.csv"; a.click();
   }
@@ -615,56 +615,30 @@
     const d = b.dataset;
     if (d.ptab) { panel.tab = d.ptab; pintarPanel(); }
     else if (d.pnU) { panel.uid = d.pnU; pintarListaUsuarios(); pintarDetalle(); }
-    else if (d.pnBorrar) { const ds = E.denuncias.find(x => x.msg === d.pnBorrar); await borrarMensaje(d.pnBorrar, ds && ds.motivo); }
+    else if (d.pnBorrar) { const ds = E.denuncias.find(x => x.msg === +d.pnBorrar); await borrarMensaje(+d.pnBorrar, ds && ds.motivo); }
     else if (d.pnAdvertir) await advertir(d.pnAdvertir);
-    else if (d.pnVer) { panel.v.cerrar(); abrirForo(d.pnVer.split("-")[0], d.pnVer); }
-    else if (d.pnDescartar) { E.denuncias.forEach(x => { if (x.msg === d.pnDescartar) x.estado = "descartada"; }); CD.anotar("Descartó denuncias de un mensaje en el Foro #" + d.pnDescartar.split("-")[0]); CD.guardar(); pintarPanel(); }
+    else if (d.pnVer) { const { f } = msgPorId(d.pnVer); panel.v.cerrar(); if (f) abrirForo(f.id, +d.pnVer); }
+    else if (d.pnDescartar) { await hacer(CD.rpc("descartar_denuncias", { p_id: +d.pnDescartar }), "Denuncias descartadas."); pintarPanel(); }
+    else if (d.pnTemporal) {
+      const clave = await hacer(CD.rpc("clave_temporal", { p_uid: d.pnTemporal }));
+      if (clave) { pintarPanel(); CD.modal(CD.cap("CONTRASEÑA TEMPORAL") + '<div class="dlg-cuerpo"><p>Envíale esta contraseña a ' + esc(CD.u(d.pnTemporal).nombre) + ' por correo o Instagram. Al entrar se le va a pedir cambiarla.</p><div class="correo-demo"><code>' + esc(clave) + '</code></div><div class="dlg-pie"><button class="btn-aero" data-cerrar>Listo</button></div></div>', "dialogo chico"); }
+    }
     else if (d.pnNombre) {
       const u = CD.u(d.pnNombre);
       if (!(await CD.confirmar("RESTABLECER NOMBRE", "Vamos a cambiar " + u.nombre + " por un nombre temporal hasta que elija otro.", "Restablecer"))) return;
-      const viejo = u.nombre; u.nombre = "@usuario_" + Math.floor(1000 + Math.random() * 9000); u.debeCambiarNombre = true;
-      CD.notificar(u.id, { tipo: "nombre" }); CD.anotar("Restableció el nombre " + viejo + " (ahora " + u.nombre + ")"); CD.guardar(); pintarPanel(); pintarTodo();
+      await hacer(CD.rpc("restablecer_nombre", { p_uid: u.id }), "Nombre restablecido."); pintarPanel();
     } else if (d.pnFoto) {
-      const u = CD.u(d.pnFoto); u.av = { t: 145, f: 0, a: 0 };
-      CD.notificar(u.id, { tipo: "foto" }); CD.anotar("Restableció la foto de " + u.nombre); CD.guardar(); pintarPanel(); pintarTodo();
+      await hacer(CD.rpc("restablecer_foto", { p_uid: d.pnFoto }), "Foto restablecida."); pintarPanel();
     } else if (d.pnSusp) {
-      const u = CD.u(d.pnSusp); u.suspendido = !u.suspendido;
-      CD.notificar(u.id, { tipo: "suspension", si: u.suspendido }); CD.anotar((u.suspendido ? "Suspendió a " : "Reactivó a ") + u.nombre); CD.guardar(); pintarPanel();
+      const u = CD.u(d.pnSusp);
+      await hacer(CD.rpc("suspender", { p_uid: u.id, p_valor: !u.suspendido }), u.suspendido ? "Cuenta reactivada." : "Cuenta suspendida."); pintarPanel();
     } else if (d.pnRol) {
-      const u = CD.u(d.pnRol); u.rol = u.rol === "moderador" ? "usuario" : "moderador";
-      CD.notificar(u.id, { tipo: "rol", rol: u.rol }); CD.anotar((u.rol === "moderador" ? "Hizo moderador a " : "Le quitó moderación a ") + u.nombre); CD.guardar(); pintarPanel(); pintarTodo();
+      const u = CD.u(d.pnRol);
+      await hacer(CD.rpc("cambiar_rol", { p_uid: u.id, p_rol: u.rol === "moderador" ? "usuario" : "moderador" }), "Rol actualizado."); pintarPanel();
     } else if (d.solSi || d.solNo) {
-      const s = E.solicitudes.find(x => x.id === (d.solSi || d.solNo)), u = CD.u(s.usuario), ok = !!d.solSi;
-      s.estado = ok ? "aprobada" : "rechazada";
-      if (ok) {
-        const p = u.perfil;
-        if (s.campo === "edad") { p.edadModo = "anio"; p.edad = s.valor; p.anio = new Date().getFullYear() - s.valor; p.edadAnioRegistro = new Date().getFullYear(); }
-        else { p[s.campo] = s.valor; if (s.campo === "uni" || s.campo === "carrera") { p.estudia = true; p.carrera = p.carrera || "periodismo"; p.uni = p.uni || "uch"; } if (s.campo === "ocupacion") p.trabaja = true; }
-      }
-      CD.notificar(u.id, { tipo: "solicitudRes", ok }); CD.anotar((ok ? "Aprobó" : "Rechazó") + " el cambio de " + nombreCampo(s.campo).toLowerCase() + " de " + u.nombre);
-      CD.guardar(); pintarPanel(); pintarTodo();
-    } else if (d.avisoBorrar) { E.avisos = E.avisos.filter(a => a.id !== d.avisoBorrar); CD.anotar("Quitó un aviso del inicio"); CD.guardar(); pintarPanel(); pintarAvisos(); }
+      await hacer(CD.rpc("resolver_solicitud", { p_id: +(d.solSi || d.solNo), p_ok: !!d.solSi }), d.solSi ? "Cambio aprobado." : "Cambio rechazado."); pintarPanel();
+    } else if (d.avisoBorrar) { await hacer(CD.rpc("quitar_aviso", { p_id: +d.avisoBorrar }), "Aviso quitado."); pintarPanel(); }
     else if (b.hasAttribute("data-csv")) csv();
-    else if (b.hasAttribute("data-reiniciar")) {
-      if (await CD.confirmar("RESTABLECER LA DEMO", "Se borran todas las cuentas nuevas, mensajes, votos y cambios de este navegador, y la demo vuelve a cero.", "Restablecer")) { CD.reiniciarDemo(); location.reload(); }
-    }
-  }
-
-  /* ===================== simulación en vivo ===================== */
-  function llegaMensaje() {
-    E.vivo = E.vivo || 0;
-    const v = CD.SEMILLA.enVivo[E.vivo]; if (!v) return;
-    E.vivo++;
-    const f = foro(v.foro); if (!f) return;
-    f.mensajes.push({ id: f.id + "-" + f.mensajes.length, de: v.de, ts: Date.now(), likes: 0, texto: v.texto });
-    if (yo && v.de !== yo.id) {
-      const c = yo.config || {};
-      if (participa(f, yo.id) && c.avisarParticipo !== false) CD.notificar(yo.id, { tipo: "respuesta", de: v.de, foro: f.id });
-      else if (c.avisarTodos) CD.notificar(yo.id, { tipo: "foro", de: v.de, foro: f.id });
-    }
-    CD.guardar();
-    if (abierto && abierto.id === f.id) pintarHilo(true); else noLeidos[f.id] = true;
-    pintarTablones(); pintarNotis();
   }
 
   /* ===================== clics ===================== */
@@ -680,28 +654,26 @@
     if ((b = t.closest("[data-borrar]"))) return borrarMensaje(b.dataset.borrar);
     if ((b = t.closest("[data-advertir]"))) return advertir(b.dataset.advertir);
     if ((b = t.closest("[data-votar]"))) { const [fid, op] = b.dataset.votar.split(":"); return votar(+fid, +op); }
-    if ((b = t.closest("[data-desvotar]"))) { delete (E.votos[b.dataset.desvotar] || {})[yo.id]; CD.guardar(); return pintarHilo(true); }
-    if ((b = t.closest("[data-destacar]"))) {
-      const f = foro(b.dataset.destacar); f.destacado = !f.destacado;
-      CD.anotar((f.destacado ? "Destacó" : "Quitó el destacado de") + " el Foro #" + f.id); CD.guardar(); pintarHilo(true); return pintarTablones();
-    }
+    if ((b = t.closest("[data-desvotar]"))) return hacer(CD.tabla(CD.sb.from("votos").delete().match({ foro_id: +b.dataset.desvotar, usuario: yo.id })));
+    if ((b = t.closest("[data-destacar]"))) { const f = foro(b.dataset.destacar); return hacer(CD.rpc("destacar_foro", { p_id: f.id, p_valor: !f.destacado })); }
     if ((b = t.closest("[data-resp]"))) {
       if (necesitaCuenta("responder")) return;
       const { m } = msgPorId(b.dataset.resp); abierto.para = m.de;
       $("#hmPara").textContent = nombre(m.de);
-      const ta = $("#hmTexto"); if (m.id.split("-")[1] !== "0" && !ta.value) ta.value = nombre(m.de) + " ";
+      const { f } = msgPorId(m.id); const ta = $("#hmTexto"); if (f.mensajes[0].id !== m.id && !ta.value) ta.value = nombre(m.de) + " ";
       ta.scrollIntoView({ block: "center", behavior: "smooth" }); setTimeout(() => ta.focus(), 300); return;
     }
     if (t.closest("[data-min-foro]")) { minimizados.push(abierto.id); abierto.v.cerrar(); return pintarTareas(); }
     if (t.closest("[data-login]")) { const c = t.closest(".capa"); if (c) c.firstElementChild.cerrar(); return abrirLogin(); }
     if (t.closest("[data-panel]")) return abrirPanel();
     if ((b = t.closest("[data-noti]"))) {
-      const n = (E.notis[yo.id] || []).find(x => x.id === b.dataset.noti); if (!n) return;
+      const n = (E.notis[yo.id] || []).find(x => String(x.id) === b.dataset.noti); if (!n) return;
       const d = (TIPOS[n.tipo] || (() => ({})))(n);
       if (d.panel && esMod) return abrirPanel(d.panel);
       if (d.cuenta) return abrirCuenta(n.tipo === "solicitudRes" ? "seguridad" : "perfil");
       if (d.foro) {
-        const f = foro(d.foro), quien = n.tipo === "borrado" ? f.mensajes.find(m => m.eliminado && m.de === yo.id) : n.de ? f.mensajes.slice().reverse().find(m => m.de === n.de) : null;
+        const f = foro(d.foro); if (!f) return;
+        const quien = n.tipo === "borrado" ? f.mensajes.find(m => m.eliminado && m.de === yo.id) : n.de ? f.mensajes.slice().reverse().find(m => m.de === n.de) : null;
         return abrirForo(d.foro, quien && quien.id);
       }
       return;
@@ -709,11 +681,11 @@
     if ((b = t.closest("[data-aviso-min]"))) { const id = b.closest("[data-aviso]").dataset.aviso; CD.prefs.min["aviso-" + id] = !CD.prefs.min["aviso-" + id]; CD.guardarPrefs(); return pintarAvisos(); }
     if ((b = t.closest("[data-aviso-x]"))) {
       const id = b.closest("[data-aviso]").dataset.aviso;
-      if (yo) { (E.avisosCerrados[yo.id] = E.avisosCerrados[yo.id] || {})[id] = true; CD.guardar(); } else avisosCerradosAnon[id] = true;
-      return pintarAvisos();
+      if (yo) { (E.avisosCerrados[yo.id] = E.avisosCerrados[yo.id] || {})[id] = true; pintarAvisos(); CD.tabla(CD.sb.from("avisos_cerrados").insert({ usuario: yo.id, aviso_id: id })).catch(er => CD.toast(CD.errTexto(er))); return; }
+      avisosCerradosAnon[id] = true; return pintarAvisos();
     }
     if ((b = t.closest("[data-lat-min]"))) { const k = b.closest("[data-lat]").dataset.lat; CD.prefs.min[k] = !CD.prefs.min[k]; CD.guardarPrefs(); return pintarMin(); }
-    if (t.closest("#notiCerrar")) { if (yo) { E.notis[yo.id] = []; CD.guardar(); pintarNotis(); } return; }
+    if (t.closest("#notiCerrar")) { if (yo) { E.notis[yo.id] = []; pintarNotis(); hacer(CD.tabla(CD.sb.from("notificaciones").delete().eq("para", yo.id))); } return; }
   });
   $("#btnCuenta").onclick = () => yo ? abrirCuenta() : abrirLogin();
   $("#btnPublicar").onclick = abrirPublicar;
@@ -721,9 +693,17 @@
   CD.botonTema($("#btnTema"));
 
   function pintarTodo() { pintarBarra(); pintarAvisos(); pintarTablones(); pintarNotis(); pintarActivos(); pintarMin(); if (abierto) pintarHilo(true); }
-  pintarTodo();
-  if (yo && yo.debeCambiarNombre) setTimeout(() => abrirCuenta("perfil"), 600);
-  setInterval(llegaMensaje, 25000);
-  setTimeout(llegaMensaje, 9000);
-  setInterval(() => { pintarNotis(); }, 60000);
+  pintarMin(); pintarBarra();
+  $("#tablones").innerHTML = '<div class="cargando"><div class="barra-prog"><i></i></div><p>Cargando el foro…</p></div>';
+  (async () => {
+    try { E = await CD.cargar(); }
+    catch (e) { $("#tablones").innerHTML = '<div class="cargando"><p>No pude conectar con el servidor de CUIDANDROGA. Revisa tu internet y recarga la página.</p></div>'; return; }
+    yo = CD.yo(); esMod = CD.esMod(yo); esAdmin = CD.esAdmin(yo);
+    pintarTodo();
+    if (yo && yo.debeCambiarClave) setTimeout(() => abrirCuenta("seguridad"), 600);
+    else if (yo && yo.debeCambiarNombre) setTimeout(() => abrirCuenta("perfil"), 600);
+    const latido = () => { if (yo) CD.sb.from("perfiles").update({ ultima_vez: new Date().toISOString() }).eq("id", yo.id).then(() => {}); };
+    latido(); setInterval(latido, 60000);
+    setInterval(() => { if (!document.hidden) refrescar(true); }, 12000);
+  })();
 })();
