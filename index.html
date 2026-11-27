@@ -5,140 +5,61 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CUIDANDROGA</title>
 <link rel="stylesheet" href="css/aero.css">
-<script>try{var t=localStorage.getItem('cd_tema');if(t)document.documentElement.dataset.tema=t;}catch(e){}</script>
+<script>try{var p=JSON.parse(localStorage.getItem('cd_prefs')||'{}'),t=p.tema||localStorage.getItem('cd_tema');if(t)document.documentElement.dataset.tema=t;}catch(e){}</script>
 </head>
 <body>
-
-<!-- Fondo tipo escritorio Vista / 7 (auroras, sin burbujas) -->
-<div class="fondo" aria-hidden="true">
-  <div class="cielo"></div>
-  <svg class="aurora" viewBox="0 0 1600 1000" preserveAspectRatio="none">
-    <defs>
-      <linearGradient id="cintaA" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0" stop-color="var(--cinta1)" stop-opacity="0"/>
-        <stop offset=".35" stop-color="var(--cinta1)" stop-opacity=".9"/>
-        <stop offset=".7" stop-color="var(--cinta2)" stop-opacity=".8"/>
-        <stop offset="1" stop-color="var(--cinta2)" stop-opacity="0"/>
-      </linearGradient>
-      <linearGradient id="cintaB" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0" stop-color="var(--cinta3)" stop-opacity="0"/>
-        <stop offset=".5" stop-color="var(--cinta3)" stop-opacity=".85"/>
-        <stop offset="1" stop-color="var(--cinta1)" stop-opacity="0"/>
-      </linearGradient>
-      <filter id="suave" x="-20%" y="-50%" width="140%" height="200%"><feGaussianBlur stdDeviation="14"/></filter>
-      <filter id="fino" x="-20%" y="-50%" width="140%" height="200%"><feGaussianBlur stdDeviation="2.5"/></filter>
-    </defs>
-    <g class="cintas">
-      <path class="c1" d="M-200 720 C 200 520, 520 820, 900 600 S 1450 330, 1800 470" stroke="url(#cintaA)" stroke-width="150" fill="none" filter="url(#suave)"/>
-      <path class="c2" d="M-200 640 C 260 470, 600 760, 960 540 S 1480 300, 1800 420" stroke="url(#cintaB)" stroke-width="34" fill="none" filter="url(#suave)"/>
-      <path class="c3" d="M-200 690 C 240 500, 560 790, 930 570 S 1460 320, 1800 450" stroke="url(#cintaA)" stroke-width="3" fill="none" filter="url(#fino)"/>
-      <path class="c4" d="M-200 760 C 300 600, 600 860, 980 650 S 1500 420, 1800 560" stroke="url(#cintaB)" stroke-width="2" fill="none" filter="url(#fino)"/>
-      <path class="c5" d="M-200 300 C 300 200, 700 420, 1100 260 S 1600 150, 1800 220" stroke="url(#cintaB)" stroke-width="90" fill="none" filter="url(#suave)" opacity=".55"/>
-    </g>
-  </svg>
-  <div class="destello"></div>
-  <div class="torres"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-</div>
+<div class="fondo" id="fondo" aria-hidden="true"></div>
 
 <header id="barra">
-  <div class="marca"><h1>CUIDANDROGA</h1></div>
+  <a class="marca" href="index.html" title="Volver al inicio"><h1>CUIDANDROGA</h1></a>
   <div class="barra-hueco"></div>
   <div class="acciones">
+    <button id="btnPanel" class="btn-panel" hidden title="Panel de moderación" aria-label="Panel de moderación"></button>
     <button id="btnTema" class="btn-pildora" title="Modo oscuro" aria-label="Modo oscuro"><span class="pildora"><i></i><i></i></span></button>
-    <button id="btnCuenta" class="btn-cuadro" title="Cuenta" aria-label="Cuenta"><span id="cuentaAvatar" class="mini-av"></span></button>
+    <button id="btnCuenta" class="btn-cuenta"><span id="cuentaAv" class="mini-av"></span><span id="cuentaTxt" class="cuenta-txt">LOGIN</span></button>
     <button id="btnPublicar" class="btn-caja" aria-label="Publicar"><span class="caja-tapa"></span><span class="caja-frente">PUBLICAR</span></button>
   </div>
 </header>
+<div id="franjaRol" class="franja-rol" hidden></div>
 
 <main id="escritorio">
-  <section id="tablones" class="tablones" aria-label="Foros"></section>
+  <section class="centro">
+    <div id="avisos" class="avisos"></div>
+    <section id="tablones" class="tablones" aria-label="Foros"></section>
+  </section>
 
   <aside id="lateral">
-    <section class="ventana sabias">
-      <div class="sabias-cuerpo">
-        <div class="sabias-cab"><span class="icono-ayuda">?</span><h2>¿Sabías que?</h2></div>
-        <p id="sabiasTexto"></p>
-        <a class="btn-aero" href="conoce.html">Conoce más</a>
+    <section class="ventana lat encuesta-lat" data-lat="encuesta">
+      <div class="cap"><span class="cap-ico atencion-ico">!</span><span class="cap-titulo">ENCUESTA</span>
+        <span class="cap-btns"><button class="cb min" data-lat-min aria-label="Minimizar"></button></span></div>
+      <div class="lat-cuerpo">
+        <div class="banda"><div class="banda-lineas"></div><div class="banda-brillo"></div></div>
+        <div class="atencion"><span class="atencion-ico">!</span>Responde esta encuesta y gana un libro a elección</div>
+        <div class="lat-pie"><a class="btn-aero" href="encuesta.html">¡Responde ya la encuesta!</a></div>
       </div>
     </section>
 
-    <section class="detras">
-      <div class="ventana activos">
-        <div class="cap"><span class="cap-titulo">USUARIOS ACTIVOS</span></div>
-        <ul id="activosLista" class="activos-lista"></ul>
-      </div>
-      <div id="notis" class="ventana notis">
-        <div class="cap">
-          <span class="cap-titulo">NOTIFICACIONES</span>
-          <span class="cap-btns">
-            <button class="cb min" id="notiMin" aria-label="Minimizar"></button>
-            <button class="cb cerrar" id="notiCerrar" aria-label="Cerrar"></button>
-          </span>
-        </div>
-        <div id="notiLista" class="noti-lista"></div>
-      </div>
+    <section class="ventana lat" data-lat="notis">
+      <div class="cap"><span class="cap-titulo">NOTIFICACIONES <span id="notiCuenta"></span></span>
+        <span class="cap-btns"><button class="cb min" data-lat-min aria-label="Minimizar"></button><button class="cb cerrar" id="notiCerrar" aria-label="Borrar notificaciones"></button></span></div>
+      <div class="lat-cuerpo"><div id="notiLista" class="noti-lista frag"></div></div>
+    </section>
+
+    <section class="ventana lat" data-lat="activos">
+      <div class="cap"><span class="cap-titulo">USUARIOS ACTIVOS <span id="activosCuenta"></span></span>
+        <span class="cap-btns"><button class="cb min" data-lat-min aria-label="Minimizar"></button></span></div>
+      <div class="lat-cuerpo"><ul id="activosLista" class="activos-lista frag"></ul></div>
     </section>
   </aside>
 </main>
+<div id="tareas" class="tareas"></div>
 
-<!-- Ventana del foro (estilo Hotmail de la época) -->
-<div id="capa" class="capa" hidden>
-  <div class="ventana hilo" role="dialog" aria-modal="true" aria-labelledby="hiloTitulo">
-    <div class="cap">
-      <span class="cap-titulo" id="hiloCap"></span>
-      <span class="cap-btns">
-        <button class="cb min" data-cerrar aria-label="Minimizar"></button>
-        <button class="cb max" id="hiloMax" aria-label="Maximizar"></button>
-        <button class="cb cerrar" data-cerrar aria-label="Cerrar"></button>
-      </span>
-    </div>
-    <div class="hm-barra">
-      <button class="hm-btn" id="hmResponder"><span class="ic ic-resp"></span>Responder</button>
-      <button class="hm-btn" id="hmLike"><span class="ic ic-like"></span>Me gusta</button>
-      <span class="hm-esp"></span>
-      <button class="hm-btn bandera" id="hmDenunciar" title="Denunciar" aria-label="Denunciar"><span class="ic ic-flag"></span></button>
-    </div>
-    <div class="hm-cuerpo">
-      <ul id="hmLista" class="hm-lista"></ul>
-      <div class="hm-lectura" id="hmLectura">
-        <h2 id="hiloTitulo" class="hm-asunto"></h2>
-        <div id="hmConv"></div>
-        <form id="hmRedactar" class="hm-redactar" hidden>
-          <div class="hm-para">Para: <b id="hmPara"></b></div>
-          <textarea id="hmTexto" rows="4" required></textarea>
-          <div class="hm-enviar"><button type="submit" class="btn-aero">Enviar</button><button type="button" class="btn-vista" id="hmCancelar">Cancelar</button></div>
-        </form>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Publicar -->
-<div id="capaPub" class="capa" hidden>
-  <form class="ventana dialogo" id="formPub" role="dialog" aria-modal="true">
-    <div class="cap"><span class="cap-titulo">PUBLICAR</span><span class="cap-btns"><button type="button" class="cb cerrar" data-cerrar aria-label="Cerrar"></button></span></div>
-    <div class="dlg-cuerpo">
-      <label>Título<input id="pubTitulo" maxlength="40" required></label>
-      <label>Pregunta<input id="pubPregunta" maxlength="120" required></label>
-      <label>Mensaje<textarea id="pubTexto" rows="6" required></textarea></label>
-      <div class="dlg-pie"><button type="submit" class="btn-aero">Publicar</button><button type="button" class="btn-vista" data-cerrar>Cancelar</button></div>
-    </div>
-  </form>
-</div>
-
-<!-- Cuenta -->
-<div id="capaCuenta" class="capa" hidden>
-  <form class="ventana dialogo chico" id="formCuenta" role="dialog" aria-modal="true">
-    <div class="cap"><span class="cap-titulo">CUENTA</span><span class="cap-btns"><button type="button" class="cb cerrar" data-cerrar aria-label="Cerrar"></button></span></div>
-    <div class="dlg-cuerpo cuenta">
-      <div id="cuentaFoto" class="cuenta-foto"></div>
-      <label>Usuario<input id="cuentaNombre" maxlength="20" required></label>
-      <div class="dlg-pie"><button type="submit" class="btn-aero">Guardar</button></div>
-    </div>
-  </form>
-</div>
-
+<script src="js/vendor/d3-array.min.js"></script>
+<script src="js/vendor/d3-geo.min.js"></script>
+<script src="js/vendor/tierra.js"></script>
 <script src="js/datos.js"></script>
+<script src="js/nucleo.js"></script>
+<script src="js/fondo.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="es" data-tema="claro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Encuesta · CUIDANDROGA</title>
+<link rel="stylesheet" href="css/aero.css">
+<script>try{var p=JSON.parse(localStorage.getItem('cd_prefs')||'{}'),t=p.tema||localStorage.getItem('cd_tema');if(t)document.documentElement.dataset.tema=t;}catch(e){}</script>
+</head>
+<body>
+<div class="fondo" id="fondo" aria-hidden="true"></div>
+<header id="barra">
+  <a class="marca" href="index.html" title="Volver al inicio"><h1>CUIDANDROGA</h1></a>
+  <div class="barra-hueco"></div>
+  <div class="acciones">
+    <button id="btnTema" class="btn-pildora" title="Modo oscuro" aria-label="Modo oscuro"><span class="pildora"><i></i><i></i></span></button>
+  </div>
+</header>
+<main class="pagina-centro">
+  <section class="ventana simple">
+    <div class="cap"><span class="cap-titulo">ENCUESTA</span><span class="cap-btns"><a class="cb cerrar" href="index.html" aria-label="Cerrar"></a></span></div>
+    <div class="banda"><div class="banda-lineas"></div><div class="banda-brillo"></div><div class="banda-cont"><span class="banda-titulo">Encuesta</span></div></div>
+    <div class="simple-cuerpo frag"><p>Acá estará la encuesta.</p><a class="btn-aero" href="index.html">Volver al foro</a></div>
+  </section>
+</main>
+<script src="js/vendor/d3-array.min.js"></script>
+<script src="js/vendor/d3-geo.min.js"></script>
+<script src="js/vendor/tierra.js"></script>
+<script src="js/datos.js"></script>
+<script src="js/nucleo.js"></script>
+<script src="js/fondo.js"></script>
+<script>CD.botonTema(CD.$("#btnTema"));</script>
+</body>
+</html>

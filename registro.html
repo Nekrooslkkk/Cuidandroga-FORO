@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es" data-tema="claro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Registro · CUIDANDROGA</title>
+<link rel="stylesheet" href="css/aero.css">
+<script>try{var p=JSON.parse(localStorage.getItem('cd_prefs')||'{}'),t=p.tema||localStorage.getItem('cd_tema');if(t)document.documentElement.dataset.tema=t;}catch(e){}</script>
+</head>
+<body>
+<div class="fondo" id="fondo" aria-hidden="true"></div>
+<header id="barra">
+  <a class="marca" href="index.html" title="Volver al inicio"><h1>CUIDANDROGA</h1></a>
+  <div class="barra-hueco"></div>
+  <div class="acciones">
+    <button id="btnTema" class="btn-pildora" title="Modo oscuro" aria-label="Modo oscuro"><span class="pildora"><i></i><i></i></span></button>
+  </div>
+</header>
+<main class="pagina-centro">
+  <section class="ventana registro">
+    <div class="cap"><span class="cap-titulo">REGISTRO</span><span class="cap-btns"><a class="cb cerrar" href="index.html" aria-label="Cerrar"></a></span></div>
+    <div class="banda"><div class="banda-lineas"></div><div class="banda-brillo"></div><div class="banda-cont"><span class="banda-titulo">Te vamos a hacer unas preguntas</span></div></div>
+    <div class="reg-cuerpo frag" id="regCuerpo">
+      <div class="reg-izq">
+        <div class="reg-cab"><div class="reg-av" id="regAv"></div><div class="reg-puntos" id="regPuntos"></div></div>
+        <div id="regPaso" class="reg-paso"></div>
+        <div class="reg-nav"><button type="button" class="btn-vista" id="regAtras">Atrás</button><button type="button" class="btn-aero grande" id="regSig">Siguiente</button></div>
+      </div>
+      <aside class="reg-revisa"><h4>Revisa</h4><ul id="regRevisa"></ul></aside>
+    </div>
+  </section>
+</main>
+<script src="js/vendor/d3-array.min.js"></script>
+<script src="js/vendor/d3-geo.min.js"></script>
+<script src="js/vendor/tierra.js"></script>
+<script src="js/datos.js"></script>
+<script src="js/nucleo.js"></script>
+<script src="js/fondo.js"></script>
+<script src="js/registro.js"></script>
+</body>
+</html>
